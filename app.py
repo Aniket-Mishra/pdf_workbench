@@ -41,7 +41,16 @@ with c2:
 with c3:
     extract_top = st.button("Extract Contents (ZIP)", key="extract_top")
 
-st.subheader("Select Pages")
+# sel_summary = st.empty()
+if "total_selected" not in st.session_state:
+    st.session_state["total_selected"] = 0
+
+hcol, mcol = st.columns([6, 2], vertical_alignment="center")
+with hcol:
+    st.subheader("Select Pages")
+with mcol:
+    sel_summary = st.empty()
+    sel_summary.metric("Pages selected", st.session_state["total_selected"])
 
 selections: Dict[str, List[int]] = {}
 for idx, (label, data) in enumerate(pdf_items):
@@ -50,6 +59,13 @@ for idx, (label, data) in enumerate(pdf_items):
             file_label=label, pdf_bytes=data, key_prefix=f"pdf{idx}"
         )
         selections[label] = selected
+
+# total_selected = sum(len(v) for v in selections.values())
+# sel_summary.metric("Pages selected", total_selected)
+new_total = sum(len(v) for v in selections.values())
+if new_total != st.session_state["total_selected"]:
+    st.session_state["total_selected"] = new_total
+sel_summary.metric("Pages selected", st.session_state["total_selected"])
 
 st.divider()
 
