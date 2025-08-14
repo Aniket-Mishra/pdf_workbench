@@ -32,6 +32,15 @@ for f in uploaded:
     data = st.session_state["pdf_store"][label]
     pdf_items.append((label, data))
 
+docs_for_org = []
+for f in uploaded:
+    data = f.read()
+    docs_for_org.append({"name": f.name, "data": data})
+
+st.session_state["workbench_docs"] = docs_for_org
+
+st.page_link("pages/organizer.py", label="Open Organizer")
+
 c1, c2, c3 = st.columns([1, 1, 1])
 merge_top = filter_top = extract_top = False
 with c1:
