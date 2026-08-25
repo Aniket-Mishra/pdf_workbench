@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="styles.css">
+    <script src="page_grid.js" type="module"></script>
+  </head>
+  <body>
+    <div id="document-legend" aria-label="Source documents" hidden></div>
+    <div id="viewport">
+      <div id="grid"></div>
+    </div>
+    <div id="organizer-actions" hidden>
+      <span id="order-status" aria-live="polite"></span>
+      <button id="undo-change" type="button">Undo</button>
+      <button id="rotate-left" type="button">Rotate left</button>
+      <button id="rotate-right" type="button">Rotate right</button>
+      <button id="duplicate-pages" type="button">Duplicate</button>
+      <button id="delete-pages" type="button">Delete</button>
+      <button id="reset-order" type="button">Reset order</button>
+      <button id="build-pdf" type="button">Build PDF</button>
+    </div>
+  </body>
+</html>

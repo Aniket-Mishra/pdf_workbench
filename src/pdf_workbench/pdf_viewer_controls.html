@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+  </head>
+  <body>
+    <script>
+      (() => {
+        const cleanupEventName = "pdf-workbench-remove-wheel-zoom";
+        document.dispatchEvent(new Event(cleanupEventName));
+
+        let lastZoomTime = 0;
+        function handlePdfWheel(event) {
+          if (!event.ctrlKey && !event.metaKey) {
+            return;
+          }
+          const pdfContainer = event.composedPath().find(
+            (element) => element?.dataset?.testid === "pdf-container",
+          );
+          if (!pdfContainer || event.deltaY === 0) {
+            return;
+          }
+
+          event.preventDefault();
+          const currentTime = Date.now();
+          if (currentTime - lastZoomTime < 100) {
+            return;
+          }
+          lastZoomTime = currentTime;
+
+          const buttonTitle = event.deltaY < 0 ? "Zoom In" : "Zoom Out";
+          pdfContainer.querySelector(
+            `button[title="${buttonTitle}"]`,
+          )?.click();
+        }
+
+        function removePdfWheelZoom() {
+          window.removeEventListener("wheel", handlePdfWheel, true);
+          document.removeEventListener(cleanupEventName, removePdfWheelZoom);
+        }
+
+        window.addEventListener("wheel", handlePdfWheel, {
+          capture: true,
+          passive: false,
+        });
+        document.addEventListener(cleanupEventName, removePdfWheelZoom);
+        window.addEventListener("pagehide", removePdfWheelZoom, {once: true});
+      })();
+    </script>
+  </body>
+</html>

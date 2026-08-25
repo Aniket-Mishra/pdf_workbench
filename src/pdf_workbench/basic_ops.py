@@ -1,38 +1,88 @@
 import io
-from typing import Dict, List, Tuple
+from pathlib import Path
 
+import pikepdf
 import pymupdf as fitz  # PyMuPDF
 
 
 def merge_selected(
-    pdfs: List[Tuple[str, bytes]], selections: Dict[str, List[int]]
+    pdfs: list[tuple[str, Path]], selections: dict[str, list[int]]
 ) -> bytes:
-    out = fitz.open()
-    for label, data in pdfs:
-        with fitz.open(stream=data, filetype="pdf") as doc:
-            sel = selections.get(label, [])
-            if not sel:
-                out.insert_pdf(doc)
-            else:
-                for pno in sel:
-                    out.insert_pdf(doc, from_page=pno, to_page=pno)
-    buf = io.BytesIO()
-    out.save(buf)
-    out.close()
-    return buf.getvalue()
+    output_document = fitz.open()
+    try:
+        for document_id, pdf_path in pdfs:
+            with fitz.open(pdf_path) as source_document:
+                selected_pages = selections.get(document_id, [])
+                if not selected_pages:
+                    output_document.insert_pdf(source_document)
+                    continue
+
+                for first_page, last_page in find_contiguous_page_ranges(
+                    selected_pages
+                ):
+                    output_document.insert_pdf(
+                        source_document,
+                        from_page=first_page,
+                        to_page=last_page,
+                    )
+
+        output_bytes = output_document.tobytes()
+    finally:
+        output_document.close()
+
+    validate_pdf(output_bytes)
+    return output_bytes
 
 
 def filter_selected_per_file(
-    label: str, data: bytes, selected_pages: List[int]
+    pdf_path: Path, selected_pages: list[int]
 ) -> bytes:
-    with fitz.open(stream=data, filetype="pdf") as doc_in:
-        out = fitz.open()
-        if not selected_pages:
-            out.insert_pdf(doc_in)
-        else:
-            for pno in selected_pages:
-                out.insert_pdf(doc_in, from_page=pno, to_page=pno)
-    buf = io.BytesIO()
-    out.save(buf)
-    out.close()
-    return buf.getvalue()
+    with fitz.open(pdf_path) as source_document:
+        output_document = fitz.open()
+        try:
+            if not selected_pages:
+                output_document.insert_pdf(source_document)
+            else:
+                for first_page, last_page in find_contiguous_page_ranges(
+                    selected_pages
+                ):
+                    output_document.insert_pdf(
+                        source_document,
+                        from_page=first_page,
+                        to_page=last_page,
+                    )
+            output_bytes = output_document.tobytes()
+        finally:
+            output_document.close()
+
+    validate_pdf(output_bytes)
+    return output_bytes
+
+
+def find_contiguous_page_ranges(
+    page_numbers: list[int],
+) -> list[tuple[int, int]]:
+    if not page_numbers:
+        return []
+
+    page_ranges: list[tuple[int, int]] = []
+    first_page = previous_page = page_numbers[0]
+
+    for page_number in page_numbers[1:]:
+        if page_number == previous_page + 1:
+            previous_page = page_number
+            continue
+
+        page_ranges.append((first_page, previous_page))
+        first_page = previous_page = page_number
+
+    page_ranges.append((first_page, previous_page))
+    return page_ranges
+
+
+def validate_pdf(pdf_bytes: bytes) -> None:
+    with pikepdf.Pdf.open(io.BytesIO(pdf_bytes)) as document:
+        syntax_warnings = document.check_pdf_syntax()
+
+    if syntax_warnings:
+        raise ValueError("Generated PDF failed structural validation.")

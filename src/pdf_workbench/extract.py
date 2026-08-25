@@ -8,7 +8,7 @@ import pandas as pd
 import pdfplumber
 import pymupdf as fitz
 
-from .utils import *
+from .utils import bytes_utf8, extract_formulas, npy_bytes_from_array, sanitize
 
 
 def extract_pdf_content_to_memory(
