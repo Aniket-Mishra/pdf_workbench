@@ -2,6 +2,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 
 import pymupdf
+import pytest
 
 from src.pdf_workbench.workspace import (
     create_source_manifest,
@@ -86,3 +87,38 @@ def test_remove_unlisted_pdfs_deletes_old_uploads() -> None:
 
         assert not first_pdf.path.exists()
         assert second_pdfs[0].path.exists()
+
+
+def test_invalid_pdf_is_rejected_before_writing() -> None:
+    with TemporaryDirectory() as temporary_directory_name:
+        workspace_directory = Path(temporary_directory_name)
+
+        with pytest.raises(ValueError, match="Could not open broken.pdf"):
+            store_uploaded_pdfs(
+                workspace_directory,
+                [("broken.pdf", b"not a pdf")],
+                source_name="test",
+            )
+
+        assert list(workspace_directory.glob("*.pdf")) == []
+
+
+def test_password_protected_pdf_has_a_clear_error() -> None:
+    document = pymupdf.open()
+    try:
+        document.new_page()
+        pdf_bytes = document.tobytes(
+            encryption=pymupdf.PDF_ENCRYPT_AES_256,
+            owner_pw="owner",
+            user_pw="secret",
+        )
+    finally:
+        document.close()
+
+    with TemporaryDirectory() as temporary_directory_name:
+        with pytest.raises(ValueError, match="password-protected"):
+            store_uploaded_pdfs(
+                Path(temporary_directory_name),
+                [("locked.pdf", pdf_bytes)],
+                source_name="test",
+            )

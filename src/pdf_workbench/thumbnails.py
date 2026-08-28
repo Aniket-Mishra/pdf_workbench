@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 
-import pymupdf as fitz
+import pymupdf
 import streamlit as st
 
 
@@ -17,7 +17,7 @@ class RenderedThumbnail:
 
 
 def encode_thumbnail(
-    pixmap: fitz.Pixmap,
+    pixmap: pymupdf.Pixmap,
     use_jpeg: bool,
 ) -> RenderedThumbnail:
     if use_jpeg:
@@ -35,13 +35,13 @@ def render_thumbnail_batch(
 ) -> list[RenderedThumbnail]:
     thumbnails: list[RenderedThumbnail] = []
 
-    with fitz.open(_pdf_path) as document:
+    with pymupdf.open(_pdf_path) as document:
         for page_number in page_numbers:
             page = document[page_number]
             scale = thumbnail_width / page.rect.width
             pixmap = page.get_pixmap(
-                matrix=fitz.Matrix(scale, scale),
-                colorspace=fitz.csRGB,
+                matrix=pymupdf.Matrix(scale, scale),
+                colorspace=pymupdf.csRGB,
                 alpha=False,
             )
             thumbnails.append(

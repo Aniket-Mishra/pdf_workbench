@@ -2,9 +2,13 @@ from pathlib import Path
 
 import streamlit as st
 
+from src.pdf_workbench.page_filter_controls import filter_visible_pages
 from src.pdf_workbench.page_grid import PageThumbnail, show_page_grid
 from src.pdf_workbench.page_ranges import parse_page_range
-from src.pdf_workbench.thumbnails import render_page_thumbnails
+from src.pdf_workbench.thumbnails import (
+    THUMBNAIL_BATCH_SIZE,
+    render_page_thumbnails,
+)
 
 
 def replace_selected_pages(
@@ -50,6 +54,41 @@ def show_page_controls(
             replace_selected_pages(document_id, selected_pages)
 
 
+def select_visible_pages(
+    document_id: str,
+    page_count: int,
+    selected_pages: set[int],
+    visible_page_numbers: tuple[int, ...],
+) -> None:
+    select_matches, exclude_matches, _ = st.columns([1, 1, 3])
+    with select_matches:
+        if st.button("Select shown", key=f"select_shown:{document_id}"):
+            replace_selected_pages(document_id, list(visible_page_numbers))
+    with exclude_matches:
+        if st.button("Exclude shown", key=f"exclude_shown:{document_id}"):
+            starting_pages = selected_pages or set(range(page_count))
+            remaining_pages = starting_pages - set(visible_page_numbers)
+            replace_selected_pages(document_id, sorted(remaining_pages))
+
+
+def get_loaded_page_count(
+    document_id: str,
+    visible_page_numbers: tuple[int, ...],
+) -> int:
+    page_manifest_key = f"visible_pages:{document_id}"
+    loaded_page_count_key = f"loaded_pages:{document_id}"
+    if (
+        st.session_state.get(page_manifest_key) != visible_page_numbers
+        or loaded_page_count_key not in st.session_state
+    ):
+        st.session_state[page_manifest_key] = visible_page_numbers
+        st.session_state[loaded_page_count_key] = min(
+            THUMBNAIL_BATCH_SIZE,
+            len(visible_page_numbers),
+        )
+    return st.session_state[loaded_page_count_key]
+
+
 def select_pdf_pages(
     pdf_path: Path,
     content_hash: str,
@@ -60,35 +99,82 @@ def select_pdf_pages(
     grid_version_key = f"grid_version:{document_id}"
 
     selected_pages = set(st.session_state.get(selection_key, []))
-    page_numbers = tuple(range(page_count))
 
     show_page_controls(document_id, page_count)
+    page_numbers = filter_visible_pages(
+        pdf_path,
+        content_hash,
+        document_id,
+        page_count,
+    )
+    if not page_numbers:
+        st.info("No pages match these filters.")
+        return sorted(selected_pages)
 
+    if st.session_state.get(f"filter_enabled:{document_id}"):
+        select_visible_pages(
+            document_id,
+            page_count,
+            selected_pages,
+            page_numbers,
+        )
+
+    loaded_page_count = get_loaded_page_count(document_id, page_numbers)
+    loaded_page_numbers = page_numbers[:loaded_page_count]
     thumbnails = render_page_thumbnails(
         content_hash,
         str(pdf_path),
-        page_numbers,
+        loaded_page_numbers,
     )
+    thumbnails_by_page = dict(zip(loaded_page_numbers, thumbnails))
     pages = [
         PageThumbnail(
             page_id=str(page_number),
-            image_bytes=thumbnail.image_bytes,
-            image_mime_type=thumbnail.mime_type,
+            image_bytes=(
+                thumbnails_by_page[page_number].image_bytes
+                if page_number in thumbnails_by_page
+                else None
+            ),
+            image_mime_type=(
+                thumbnails_by_page[page_number].mime_type
+                if page_number in thumbnails_by_page
+                else "image/png"
+            ),
             caption=f"Page {page_number + 1}",
         )
-        for page_number, thumbnail in zip(page_numbers, thumbnails)
+        for page_number in page_numbers
     ]
     grid_state = show_page_grid(
         pages=pages,
         selected_ids={str(page_number) for page_number in selected_pages},
         selectable=True,
         reorderable=False,
+        visible_page_count=loaded_page_count,
         key=f"page_grid:{document_id}:"
         f"{st.session_state.get(grid_version_key, 0)}",
     )
 
-    selected_page_numbers = sorted(
+    selected_visible_pages = {
         int(page_id) for page_id in grid_state.selected_ids
+    }
+    hidden_selected_pages = selected_pages - set(page_numbers)
+    selected_page_numbers = sorted(
+        hidden_selected_pages | selected_visible_pages
     )
     st.session_state[selection_key] = selected_page_numbers
+
+    load_action_key = f"load_more_action:{document_id}"
+    new_load_requested = (
+        grid_state.action == "load_more"
+        and grid_state.action_id is not None
+        and grid_state.action_id != st.session_state.get(load_action_key)
+    )
+    if new_load_requested:
+        st.session_state[load_action_key] = grid_state.action_id
+        st.session_state[f"loaded_pages:{document_id}"] = min(
+            loaded_page_count + THUMBNAIL_BATCH_SIZE,
+            len(page_numbers),
+        )
+        st.rerun()
+
     return selected_page_numbers

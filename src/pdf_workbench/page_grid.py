@@ -8,7 +8,7 @@ import streamlit.components.v1 as components
 @dataclass(frozen=True)
 class PageThumbnail:
     page_id: str
-    image_bytes: bytes
+    image_bytes: bytes | None
     caption: str
     image_mime_type: str = "image/png"
     document_number: int | None = None
@@ -45,6 +45,7 @@ def show_page_grid(
     key: str,
     ordered_pages: list[GridPage] | None = None,
     reset_order_ids: list[str] | None = None,
+    visible_page_count: int | None = None,
 ) -> PageGridState:
     source_page_ids = {page.page_id for page in pages}
     default_ordered_pages = ordered_pages or [
@@ -77,6 +78,12 @@ def show_page_grid(
         "action": None,
         "action_id": None,
     }
+    if visible_page_count is None:
+        visible_page_count = len(default_ordered_pages)
+    visible_page_count = max(
+        0,
+        min(visible_page_count, len(default_ordered_pages)),
+    )
     component_value = page_grid_component(
         pages=[
             {
@@ -84,6 +91,8 @@ def show_page_grid(
                 "image": (
                     f"data:{page.image_mime_type};base64,"
                     + b64encode(page.image_bytes).decode("ascii")
+                    if page.image_bytes is not None
+                    else None
                 ),
                 "caption": page.caption,
                 "document_number": page.document_number,
@@ -96,6 +105,7 @@ def show_page_grid(
         selected_ids=default_value["selected_ids"],
         selectable=selectable,
         reorderable=reorderable,
+        visible_page_count=visible_page_count,
         default=default_value,
         key=key,
     )
@@ -125,7 +135,7 @@ def show_page_grid(
     )
 
     action = component_value.get("action")
-    if action != "build":
+    if action not in {"build", "load_more"}:
         action = None
     action_id = component_value.get("action_id")
     if not isinstance(action_id, str):

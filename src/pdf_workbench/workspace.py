@@ -32,6 +32,7 @@ def store_uploaded_pdfs(
     content_occurrences: dict[str, int] = {}
 
     for display_name, pdf_bytes in uploaded_files:
+        page_count = read_pdf_page_count(pdf_bytes, display_name)
         content_hash = sha256(pdf_bytes).hexdigest()
         occurrence = content_occurrences.get(content_hash, 0)
         content_occurrences[content_hash] = occurrence + 1
@@ -39,12 +40,6 @@ def store_uploaded_pdfs(
         pdf_path = workspace_directory / f"{content_hash}.pdf"
         if not pdf_path.exists():
             pdf_path.write_bytes(pdf_bytes)
-
-        try:
-            with pymupdf.open(pdf_path) as document:
-                page_count = document.page_count
-        except Exception as error:
-            raise ValueError(f"Could not open {display_name} as a PDF.") from error
 
         stored_pdfs.append(
             StoredPdf(
@@ -57,6 +52,24 @@ def store_uploaded_pdfs(
         )
 
     return stored_pdfs
+
+
+def read_pdf_page_count(pdf_bytes: bytes, display_name: str) -> int:
+    try:
+        with pymupdf.open(stream=pdf_bytes, filetype="pdf") as document:
+            if document.needs_pass:
+                raise ValueError(
+                    f"{display_name} is password-protected. Unlock it first."
+                )
+            page_count = document.page_count
+    except ValueError:
+        raise
+    except Exception as error:
+        raise ValueError(f"Could not open {display_name} as a PDF.") from error
+
+    if page_count < 1:
+        raise ValueError(f"{display_name} has no pages.")
+    return page_count
 
 
 def remove_unlisted_pdfs(

@@ -5,15 +5,15 @@ from pathlib import Path
 import streamlit as st
 
 from src.pdf_workbench.basic_ops import (
-    filter_selected_per_file,
+    export_selected_pages,
     merge_selected,
 )
-from src.pdf_workbench.extract import build_extraction_zip
 from src.pdf_workbench.page_selector import select_pdf_pages
+from src.pdf_workbench.split_controls import show_split_controls
 
 
 st.title("Workbench")
-st.caption("Select pages, merge PDFs, filter pages, or extract contents.")
+st.caption("Select pages, merge PDFs, save selections, or extract contents.")
 
 stored_pdfs = list(st.session_state.get("workbench_docs", []))
 if not stored_pdfs:
@@ -39,17 +39,21 @@ for stored_pdf in stored_pdfs:
 selected_page_count = sum(
     len(selected_pages) for selected_pages in selections.values()
 )
-st.caption(f"{selected_page_count} pages selected")
+selected_page_label = "page" if selected_page_count == 1 else "pages"
+st.caption(f"{selected_page_count} {selected_page_label} selected")
 
-merge_column, filter_column, extract_column = st.columns(3)
+merge_column, save_column, extract_column = st.columns(3)
 with merge_column:
     merge_pdf = st.button(
         "Merge PDFs",
         type="primary",
         use_container_width=True,
     )
-with filter_column:
-    filter_pdfs = st.button("Filter PDFs", use_container_width=True)
+with save_column:
+    save_selected_pages = st.button(
+        "Save selected pages",
+        use_container_width=True,
+    )
 with extract_column:
     extract_contents = st.button(
         "Extract contents",
@@ -71,24 +75,17 @@ if merge_pdf:
         mime="application/pdf",
     )
 
-if filter_pdfs:
-    filtered_files = [
-        (
-            stored_pdf.display_name,
-            filter_selected_per_file(
-                stored_pdf.path,
-                selections.get(stored_pdf.document_id, []),
-            ),
+if save_selected_pages:
+    if len(stored_pdfs) == 1:
+        stored_pdf = stored_pdfs[0]
+        selected_pdf = export_selected_pages(
+            stored_pdf.path,
+            selections.get(stored_pdf.document_id, []),
         )
-        for stored_pdf in stored_pdfs
-    ]
-
-    if len(filtered_files) == 1:
-        display_name, filtered_pdf = filtered_files[0]
-        download_name = f"{Path(display_name).stem}_filtered.pdf"
+        download_name = f"{Path(stored_pdf.display_name).stem}_selected.pdf"
         st.download_button(
             f"Download {download_name}",
-            data=filtered_pdf,
+            data=selected_pdf,
             file_name=download_name,
             mime="application/pdf",
         )
@@ -99,27 +96,35 @@ if filter_pdfs:
             "w",
             compression=zipfile.ZIP_DEFLATED,
         ) as zip_file:
-            for file_number, (display_name, filtered_pdf) in enumerate(
-                filtered_files,
+            for file_number, stored_pdf in enumerate(
+                stored_pdfs,
                 1,
             ):
                 download_name = (
-                    f"{Path(display_name).stem}_{file_number}_filtered.pdf"
+                    f"{file_number}_{Path(stored_pdf.display_name).stem}"
+                    "_selected.pdf"
                 )
-                zip_file.writestr(download_name, filtered_pdf)
+                selected_pdf = export_selected_pages(
+                    stored_pdf.path,
+                    selections.get(stored_pdf.document_id, []),
+                )
+                zip_file.writestr(download_name, selected_pdf)
 
         st.download_button(
-            "Download filtered_pdfs.zip",
+            "Download selected_pages.zip",
             data=zip_buffer.getvalue(),
-            file_name="filtered_pdfs.zip",
+            file_name="selected_pages.zip",
             mime="application/zip",
         )
 
 if extract_contents:
+    # Table extraction has heavy imports, so load it only for this action.
+    from src.pdf_workbench.extract import build_extraction_zip
+
     with st.spinner("Extracting contents..."):
         extraction_zip = build_extraction_zip(
             [
-                (stored_pdf.display_name, stored_pdf.path.read_bytes())
+                (stored_pdf.display_name, stored_pdf.path)
                 for stored_pdf in stored_pdfs
             ]
         )
@@ -129,3 +134,5 @@ if extract_contents:
         file_name="extracted_contents.zip",
         mime="application/zip",
     )
+
+show_split_controls(stored_pdfs, selections)

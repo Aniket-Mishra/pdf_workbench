@@ -2,29 +2,26 @@ import io
 from pathlib import Path
 
 import pikepdf
-import pymupdf as fitz  # PyMuPDF
+import pymupdf
 
 
 def merge_selected(
-    pdfs: list[tuple[str, Path]], selections: dict[str, list[int]]
+    pdf_documents: list[tuple[str, Path]],
+    selections: dict[str, list[int]],
 ) -> bytes:
-    output_document = fitz.open()
-    try:
-        for document_id, pdf_path in pdfs:
-            with fitz.open(pdf_path) as source_document:
-                selected_pages = selections.get(document_id, [])
-                if not selected_pages:
-                    output_document.insert_pdf(source_document)
-                    continue
+    if not pdf_documents:
+        raise ValueError("Open at least one PDF before merging.")
 
-                for first_page, last_page in find_contiguous_page_ranges(
-                    selected_pages
-                ):
-                    output_document.insert_pdf(
-                        source_document,
-                        from_page=first_page,
-                        to_page=last_page,
-                    )
+    output_document = pymupdf.open()
+    try:
+        for document_id, pdf_path in pdf_documents:
+            with pymupdf.open(pdf_path) as source_document:
+                selected_pages = selections.get(document_id, [])
+                insert_selected_pages(
+                    output_document,
+                    source_document,
+                    selected_pages,
+                )
 
         output_bytes = output_document.tobytes()
     finally:
@@ -34,29 +31,41 @@ def merge_selected(
     return output_bytes
 
 
-def filter_selected_per_file(
+def export_selected_pages(
     pdf_path: Path, selected_pages: list[int]
 ) -> bytes:
-    with fitz.open(pdf_path) as source_document:
-        output_document = fitz.open()
+    with pymupdf.open(pdf_path) as source_document:
+        output_document = pymupdf.open()
         try:
-            if not selected_pages:
-                output_document.insert_pdf(source_document)
-            else:
-                for first_page, last_page in find_contiguous_page_ranges(
-                    selected_pages
-                ):
-                    output_document.insert_pdf(
-                        source_document,
-                        from_page=first_page,
-                        to_page=last_page,
-                    )
+            insert_selected_pages(
+                output_document,
+                source_document,
+                selected_pages,
+            )
+            output_document.set_metadata(source_document.metadata)
             output_bytes = output_document.tobytes()
         finally:
             output_document.close()
 
     validate_pdf(output_bytes)
     return output_bytes
+
+
+def insert_selected_pages(
+    output_document: pymupdf.Document,
+    source_document: pymupdf.Document,
+    selected_pages: list[int],
+) -> None:
+    if not selected_pages:
+        output_document.insert_pdf(source_document)
+        return
+
+    for first_page, last_page in find_contiguous_page_ranges(selected_pages):
+        output_document.insert_pdf(
+            source_document,
+            from_page=first_page,
+            to_page=last_page,
+        )
 
 
 def find_contiguous_page_ranges(

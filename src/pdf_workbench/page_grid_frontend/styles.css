@@ -235,6 +235,11 @@ body.organizer #viewport {
   outline-offset: -1px;
 }
 
+.page-loading {
+  color: color-mix(in srgb, currentColor 58%, transparent);
+  font-size: 14px;
+}
+
 .page-caption {
   display: -webkit-box;
   min-height: 36px;

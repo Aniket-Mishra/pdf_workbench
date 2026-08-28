@@ -34,6 +34,8 @@ let reorderable = false;
 let copySequence = 0;
 let lastFrameHeight = 0;
 let initialized = false;
+let visiblePageCount = 0;
+let loadingMorePages = false;
 
 function sendStreamlitMessage(type, extra = {}) {
   window.parent.postMessage(
@@ -58,6 +60,21 @@ function sendGridState(action = null) {
 
 function showStatus(message) {
   orderStatus.textContent = message;
+}
+
+function requestMorePages() {
+  if (loadingMorePages || visiblePageCount >= orderedPages.length) {
+    return;
+  }
+  const remainingScroll = (
+    viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight
+  );
+  if (remainingScroll > 240) {
+    return;
+  }
+  loadingMorePages = true;
+  showStatus("Loading more pages");
+  sendGridState("load_more");
 }
 
 function rememberOrganizerState() {
@@ -209,7 +226,7 @@ function renderGrid(focusPageId = null) {
   const pageSourcesById = new Map(
     pageSources.map((sourcePage) => [sourcePage.id, sourcePage]),
   );
-  const cards = orderedPages.map((page) => (
+  const cards = orderedPages.slice(0, visiblePageCount).map((page) => (
     createPageCard(
       page,
       pageSourcesById.get(page.source_id),
@@ -225,7 +242,10 @@ function renderGrid(focusPageId = null) {
     grid.querySelector(selector)?.focus();
   }
   updateActionButtons();
-  requestAnimationFrame(updateFrameHeight);
+  requestAnimationFrame(() => {
+    updateFrameHeight();
+    requestMorePages();
+  });
 }
 
 function rotateSelectedPages(degrees) {
@@ -331,6 +351,11 @@ window.addEventListener("message", (event) => {
   initialized = true;
   selectable = componentArguments.selectable;
   reorderable = componentArguments.reorderable;
+  visiblePageCount = Math.min(
+    componentArguments.visible_page_count,
+    orderedPages.length,
+  );
+  loadingMorePages = false;
   document.body.classList.toggle("organizer", reorderable);
   organizerActions.hidden = !reorderable;
   applyTheme(event.data.theme);
@@ -350,6 +375,7 @@ grid.addEventListener("dragstart", pageDragHandlers.start);
 grid.addEventListener("dragover", pageDragHandlers.over);
 grid.addEventListener("drop", pageDragHandlers.drop);
 grid.addEventListener("dragend", pageDragHandlers.finish);
+viewport.addEventListener("scroll", requestMorePages, {passive: true});
 undoButton.addEventListener("click", undoOrganizerChange);
 rotateLeftButton.addEventListener("click", () => rotateSelectedPages(-90));
 rotateRightButton.addEventListener("click", () => rotateSelectedPages(90));

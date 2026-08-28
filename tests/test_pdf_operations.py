@@ -5,7 +5,7 @@ from tempfile import TemporaryDirectory
 import pymupdf
 
 from src.pdf_workbench.basic_ops import (
-    filter_selected_per_file,
+    export_selected_pages,
     find_contiguous_page_ranges,
     merge_selected,
 )
@@ -21,9 +21,14 @@ from src.pdf_workbench.thumbnails import (
 from src.pdf_workbench.workspace import StoredPdf
 
 
-def create_pdf_file(pdf_path: Path, page_count: int) -> None:
+def create_pdf_file(
+    pdf_path: Path,
+    page_count: int,
+    title: str = "",
+) -> None:
     document = pymupdf.open()
     try:
+        document.set_metadata({"title": title})
         for page_number in range(page_count):
             page = document.new_page()
             page.insert_text((72, 72), f"Page {page_number + 1}")
@@ -57,13 +62,23 @@ def test_merge_selected_copies_requested_pages() -> None:
     assert read_page_texts(output_bytes) == ["Page 1", "Page 2", "Page 5"]
 
 
-def test_filter_selected_copies_requested_pages() -> None:
+def test_export_selected_pages_copies_requested_pages() -> None:
     with TemporaryDirectory() as temporary_directory_name:
         pdf_path = Path(temporary_directory_name) / "source.pdf"
         create_pdf_file(pdf_path, page_count=4)
-        output_bytes = filter_selected_per_file(pdf_path, [1, 3])
+        output_bytes = export_selected_pages(pdf_path, [1, 3])
 
     assert read_page_texts(output_bytes) == ["Page 2", "Page 4"]
+
+
+def test_export_selected_pages_preserves_metadata() -> None:
+    with TemporaryDirectory() as temporary_directory_name:
+        pdf_path = Path(temporary_directory_name) / "source.pdf"
+        create_pdf_file(pdf_path, page_count=2, title="Example")
+        output_bytes = export_selected_pages(pdf_path, [0])
+
+    with pymupdf.open(stream=output_bytes, filetype="pdf") as document:
+        assert document.metadata["title"] == "Example"
 
 
 def test_thumbnail_rendering_uses_requested_pages_only() -> None:

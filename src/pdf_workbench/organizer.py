@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 
-import pymupdf as fitz
+import pymupdf
 
 from src.pdf_workbench.basic_ops import validate_pdf
 from src.pdf_workbench.thumbnails import (
@@ -80,8 +80,8 @@ def merge_pages_in_order(
     if not page_placements:
         raise ValueError("Keep at least one page in the organizer.")
 
-    output_document = fitz.open()
-    opened_documents: dict[int, fitz.Document] = {}
+    output_document = pymupdf.open()
+    opened_documents: dict[int, pymupdf.Document] = {}
     try:
         for page_placement in page_placements:
             document_index, page_index = map(
@@ -89,7 +89,7 @@ def merge_pages_in_order(
                 page_placement.source_page_id.split(":"),
             )
             if document_index not in opened_documents:
-                opened_documents[document_index] = fitz.open(
+                opened_documents[document_index] = pymupdf.open(
                     documents[document_index].path
                 )
             output_document.insert_pdf(

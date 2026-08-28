@@ -43,17 +43,24 @@ export function createPageCard(
 
   const imageFrame = document.createElement("span");
   imageFrame.className = "page-image";
-  const image = document.createElement("img");
-  image.src = sourcePage.image;
-  image.alt = "";
-  image.loading = "lazy";
-  image.decoding = "async";
-  image.draggable = false;
-  if (page.rotation) {
-    const scale = page.rotation % 180 === 0 ? 1 : 0.75;
-    image.style.transform = `rotate(${page.rotation}deg) scale(${scale})`;
+  if (sourcePage.image) {
+    const image = document.createElement("img");
+    image.src = sourcePage.image;
+    image.alt = "";
+    image.loading = "lazy";
+    image.decoding = "async";
+    image.draggable = false;
+    if (page.rotation) {
+      const scale = page.rotation % 180 === 0 ? 1 : 0.75;
+      image.style.transform = `rotate(${page.rotation}deg) scale(${scale})`;
+    }
+    imageFrame.append(image);
+  } else {
+    const loadingLabel = document.createElement("span");
+    loadingLabel.className = "page-loading";
+    loadingLabel.textContent = "Loading preview";
+    imageFrame.append(loadingLabel);
   }
-  imageFrame.append(image);
   if (sourcePage.document_number) {
     const documentBadge = document.createElement("span");
     documentBadge.className = "document-badge";

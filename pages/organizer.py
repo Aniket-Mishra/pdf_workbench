@@ -12,6 +12,7 @@ from src.pdf_workbench.page_grid import (
     PageThumbnail,
     show_page_grid,
 )
+from src.pdf_workbench.thumbnails import THUMBNAIL_BATCH_SIZE
 from src.pdf_workbench.workspace import create_source_manifest
 
 st.title("Organize pages")
@@ -33,20 +34,46 @@ if (
 ):
     st.session_state["organizer_pages"] = initial_placements
     st.session_state["organizer_source_manifest"] = source_manifest
+    st.session_state["organizer_loaded_pages"] = min(
+        THUMBNAIL_BATCH_SIZE,
+        len(initial_placements),
+    )
     st.session_state.pop("organizer_build_action_id", None)
+    st.session_state.pop("organizer_load_action_id", None)
     st.session_state.pop("organized_pdf_bytes", None)
 
 page_placements = list(st.session_state["organizer_pages"])
 total_pages = len(page_placements)
+loaded_page_count = min(
+    st.session_state.get("organizer_loaded_pages", THUMBNAIL_BATCH_SIZE),
+    total_pages,
+)
 st.caption(f"{len(documents)} PDF(s), {total_pages} pages")
-thumbnails_by_id = render_organizer_thumbnails(documents, page_references)
+visible_source_ids = {
+    page.source_page_id for page in page_placements[:loaded_page_count]
+}
+visible_page_references = [
+    page for page in page_references if page.uid in visible_source_ids
+]
+thumbnails_by_id = render_organizer_thumbnails(
+    documents,
+    visible_page_references,
+)
 show_document_markers = len(documents) > 1
 grid_state = show_page_grid(
     pages=[
         PageThumbnail(
             page_id=page.uid,
-            image_bytes=thumbnails_by_id[page.uid].image_bytes,
-            image_mime_type=thumbnails_by_id[page.uid].mime_type,
+            image_bytes=(
+                thumbnails_by_id[page.uid].image_bytes
+                if page.uid in thumbnails_by_id
+                else None
+            ),
+            image_mime_type=(
+                thumbnails_by_id[page.uid].mime_type
+                if page.uid in thumbnails_by_id
+                else "image/png"
+            ),
             caption=f"Page {page.page_index + 1}",
             document_number=(
                 page.document_index + 1 if show_document_markers else None
@@ -70,9 +97,33 @@ grid_state = show_page_grid(
     selected_ids=set(),
     selectable=True,
     reorderable=True,
+    visible_page_count=loaded_page_count,
     key=organizer_grid_key,
     reset_order_ids=initial_order,
 )
+
+updated_page_placements = [
+    PagePlacement(
+        instance_id=page.page_id,
+        source_page_id=page.source_page_id,
+        rotation=page.rotation,
+    )
+    for page in grid_state.ordered_pages
+]
+new_load_requested = (
+    grid_state.action == "load_more"
+    and grid_state.action_id is not None
+    and grid_state.action_id
+    != st.session_state.get("organizer_load_action_id")
+)
+if new_load_requested:
+    st.session_state["organizer_pages"] = updated_page_placements
+    st.session_state["organizer_loaded_pages"] = min(
+        loaded_page_count + THUMBNAIL_BATCH_SIZE,
+        len(updated_page_placements),
+    )
+    st.session_state["organizer_load_action_id"] = grid_state.action_id
+    st.rerun()
 
 new_build_requested = (
     grid_state.action == "build"
@@ -81,14 +132,7 @@ new_build_requested = (
     != st.session_state.get("organizer_build_action_id")
 )
 if new_build_requested:
-    page_placements = [
-        PagePlacement(
-            instance_id=page.page_id,
-            source_page_id=page.source_page_id,
-            rotation=page.rotation,
-        )
-        for page in grid_state.ordered_pages
-    ]
+    page_placements = updated_page_placements
     st.session_state["organizer_pages"] = page_placements
     with st.spinner("Building PDF..."):
         st.session_state["organized_pdf_bytes"] = merge_pages_in_order(

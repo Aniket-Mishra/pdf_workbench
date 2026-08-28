@@ -2,6 +2,7 @@ from pathlib import Path
 
 import streamlit as st
 
+from src.pdf_workbench.page_filters import clear_page_facts_cache
 from src.pdf_workbench.thumbnails import clear_thumbnail_cache
 from src.pdf_workbench.workspace import (
     create_workspace_directory,
@@ -15,6 +16,8 @@ def clear_document_session_state() -> None:
         "organizer_pages",
         "organizer_source_manifest",
         "organizer_build_action_id",
+        "organizer_load_action_id",
+        "organizer_loaded_pages",
         "organized_pdf_bytes",
     )
     for state_key in state_keys:
@@ -24,6 +27,15 @@ def clear_document_session_state() -> None:
         "selected_pages:",
         "window_start:",
         "grid_version:",
+        "loaded_pages:",
+        "visible_pages:",
+        "load_more_action:",
+        "filter_enabled:",
+        "filter_text:",
+        "filter_regex:",
+        "filter_types:",
+        "filter_orientations:",
+        "filter_sizes:",
     )
     for state_key in list(st.session_state):
         if state_key.startswith(selection_prefixes):
@@ -66,6 +78,7 @@ if st.session_state.get("viewer_upload_manifest") != upload_manifest:
         stored_pdfs,
     )
     clear_thumbnail_cache()
+    clear_page_facts_cache()
     clear_document_session_state()
     st.session_state["workbench_docs"] = stored_pdfs
     st.session_state["viewer_upload_manifest"] = upload_manifest
