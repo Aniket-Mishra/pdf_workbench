@@ -103,6 +103,23 @@ def test_invalid_pdf_is_rejected_before_writing() -> None:
         assert list(workspace_directory.glob("*.pdf")) == []
 
 
+def test_invalid_upload_batch_writes_no_partial_files() -> None:
+    with TemporaryDirectory() as temporary_directory_name:
+        workspace_directory = Path(temporary_directory_name)
+
+        with pytest.raises(ValueError, match="Could not open broken.pdf"):
+            store_uploaded_pdfs(
+                workspace_directory,
+                [
+                    ("valid.pdf", create_pdf_bytes("valid")),
+                    ("broken.pdf", b"not a pdf"),
+                ],
+                source_name="test",
+            )
+
+        assert list(workspace_directory.glob("*.pdf")) == []
+
+
 def test_password_protected_pdf_has_a_clear_error() -> None:
     document = pymupdf.open()
     try:

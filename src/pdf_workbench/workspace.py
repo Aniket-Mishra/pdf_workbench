@@ -28,7 +28,7 @@ def store_uploaded_pdfs(
     uploaded_files: list[tuple[str, bytes]],
     source_name: str,
 ) -> list[StoredPdf]:
-    stored_pdfs: list[StoredPdf] = []
+    pending_uploads: list[tuple[StoredPdf, bytes]] = []
     content_occurrences: dict[str, int] = {}
 
     for display_name, pdf_bytes in uploaded_files:
@@ -38,20 +38,24 @@ def store_uploaded_pdfs(
         content_occurrences[content_hash] = occurrence + 1
 
         pdf_path = workspace_directory / f"{content_hash}.pdf"
-        if not pdf_path.exists():
-            pdf_path.write_bytes(pdf_bytes)
-
-        stored_pdfs.append(
-            StoredPdf(
-                document_id=f"{source_name}:{content_hash}:{occurrence}",
-                content_hash=content_hash,
-                display_name=display_name,
-                path=pdf_path,
-                page_count=page_count,
+        pending_uploads.append(
+            (
+                StoredPdf(
+                    document_id=f"{source_name}:{content_hash}:{occurrence}",
+                    content_hash=content_hash,
+                    display_name=display_name,
+                    path=pdf_path,
+                    page_count=page_count,
+                ),
+                pdf_bytes,
             )
         )
 
-    return stored_pdfs
+    for stored_pdf, pdf_bytes in pending_uploads:
+        if not stored_pdf.path.exists():
+            stored_pdf.path.write_bytes(pdf_bytes)
+
+    return [stored_pdf for stored_pdf, _pdf_bytes in pending_uploads]
 
 
 def read_pdf_page_count(pdf_bytes: bytes, display_name: str) -> int:

@@ -145,11 +145,22 @@ def write_image_content(
         array_name = archive_root / "images" / f"{image_stem}.npy"
 
         archive.writestr(image_name.as_posix(), image_bytes)
-        image_array = np.frombuffer(image_bytes, dtype=np.uint8)
+        image_array = decode_image_array(image_bytes)
         archive.writestr(
             array_name.as_posix(),
             encode_numpy_array(image_array),
         )
+
+
+def decode_image_array(image_bytes: bytes) -> np.ndarray:
+    pixmap = pymupdf.Pixmap(image_bytes)
+    array_shape = (pixmap.height, pixmap.width, pixmap.n)
+    if pixmap.n == 1:
+        array_shape = (pixmap.height, pixmap.width)
+    return np.frombuffer(
+        pixmap.samples,
+        dtype=np.uint8,
+    ).reshape(array_shape).copy()
 
 
 def write_table_content(
