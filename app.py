@@ -2,6 +2,8 @@ from pathlib import Path
 
 import streamlit as st
 
+from src.pdf_workbench.upload_controls import show_upload_controls
+
 
 st.set_page_config(
     page_title="PDF Workbench",
@@ -19,6 +21,7 @@ selected_page = st.navigation(
     {
         "PDF Workbench": [
             st.Page("pages/viewer.py", title="PDF viewer", default=True),
+            st.Page("pages/editor.py", title="Editor"),
             st.Page("pages/workbench.py", title="Workbench"),
             st.Page("pages/organizer.py", title="Organizer"),
         ]
@@ -27,6 +30,7 @@ selected_page = st.navigation(
 )
 
 with st.sidebar:
+    show_upload_controls()
     documents = st.session_state.get("workbench_docs", [])
     st.divider()
     if documents:
@@ -34,7 +38,7 @@ with st.sidebar:
         st.markdown(f"**{len(documents)} PDF(s) open**")
         st.caption(f"{page_count} pages available")
     else:
-        st.caption("Open PDFs in the viewer to begin.")
+        st.caption("Open PDFs above to begin.")
     st.caption("Private, local PDF tools.")
     st.caption("Files stay on this machine.")
 

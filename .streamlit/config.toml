@@ -1,7 +1,18 @@
+[client]
+toolbarMode = "minimal"
+
 [server]
+address = "127.0.0.1"
 headless = true
 runOnSave = true
 maxUploadSize = 500
 
+[browser]
+gatherUsageStats = false
+
 [theme]
 base = "dark"
+
+[theme.sidebar]
+primaryColor = "#FF4B4B"
+textColor = "#FAFAFA"
