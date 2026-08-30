@@ -1,0 +1,254 @@
+:root {
+  color-scheme: light dark;
+  font-family: "Helvetica Neue", Helvetica, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  --background: #ffffff;
+  --foreground: #1f2937;
+  --muted-background: #f3f4f6;
+  --viewer-background: #d8dce2;
+  --border: color-mix(in srgb, var(--foreground) 20%, transparent);
+  --primary: #c2413a;
+  --primary-foreground: #ffffff;
+  --focus: #2563eb;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  color: var(--foreground);
+  background: transparent;
+}
+
+#editor-shell {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+  background: var(--background);
+}
+
+#toolbar {
+  position: relative;
+  z-index: 20;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  min-height: 60px;
+  padding: 8px;
+  background: var(--background);
+  border-bottom: 1px solid var(--border);
+}
+
+button,
+input {
+  min-height: 44px;
+  color: inherit;
+  background: var(--muted-background);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  font: inherit;
+}
+
+button {
+  padding: 0 14px;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+button:active {
+  transform: scale(0.97);
+}
+
+button:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+
+button:focus-visible,
+input:focus-visible,
+.text-edit:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+}
+
+button[aria-pressed="true"],
+button.primary {
+  color: var(--primary-foreground);
+  background: var(--primary);
+  border-color: var(--primary);
+}
+
+#font-size-label {
+  margin-left: 4px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+#font-size {
+  width: 70px;
+  padding: 0 8px;
+  font-variant-numeric: tabular-nums;
+}
+
+#status {
+  flex: 1 1 160px;
+  min-width: 120px;
+  padding: 0 4px;
+  font-size: 14px;
+}
+
+#build-pdf {
+  margin-left: auto;
+}
+
+#viewport {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 16px 12px 32px;
+  background: var(--viewer-background);
+}
+
+#pages {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 24px;
+}
+
+.page-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: min(1080px, 100%);
+}
+
+.pdf-page {
+  position: relative;
+  width: 100%;
+  overflow: hidden;
+  background: #ffffff;
+  box-shadow:
+    0 1px 2px rgb(0 0 0 / 8%),
+    0 4px 16px rgb(0 0 0 / 10%);
+}
+
+.pdf-page > img,
+.text-layer {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.pdf-page > img {
+  display: block;
+  object-fit: contain;
+  pointer-events: none;
+  user-select: none;
+  outline: 1px solid rgb(0 0 0 / 6%);
+  outline-offset: -1px;
+}
+
+.text-layer {
+  overflow: hidden;
+}
+
+body.add-text-mode .pdf-page {
+  cursor: crosshair;
+}
+
+.text-edit,
+.draft-text {
+  position: absolute;
+  z-index: 1;
+  margin: 0;
+  padding: 0;
+  color: #000000;
+  font-family: Helvetica, Arial, sans-serif;
+  line-height: 1;
+  white-space: pre;
+}
+
+.text-edit {
+  border: 0;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+
+.text-edit::before {
+  position: absolute;
+  inset: -6px;
+  content: "";
+}
+
+.text-edit.selected {
+  outline: 2px solid var(--primary);
+  outline-offset: 3px;
+}
+
+.text-edit.dragging {
+  cursor: grabbing;
+}
+
+.draft-text {
+  min-width: 120px;
+  min-height: 0;
+  background: rgb(255 255 255 / 94%);
+  border: 1px solid var(--primary);
+  border-radius: 2px;
+}
+
+.page-number {
+  margin-top: 8px;
+  padding: 3px 8px;
+  color: #374151;
+  background: rgb(255 255 255 / 82%);
+  border-radius: 5px;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
+
+#loading-status {
+  margin: 24px 0 0;
+  text-align: center;
+}
+
+@media (max-width: 640px) {
+  #toolbar {
+    align-items: stretch;
+  }
+
+  #status {
+    order: 2;
+    flex-basis: 100%;
+  }
+
+  #build-pdf {
+    margin-left: 0;
+  }
+
+  #viewport {
+    padding: 12px 8px 32px;
+  }
+
+  #pages {
+    gap: 16px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

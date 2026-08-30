@@ -1,5 +1,6 @@
 import streamlit as st
 
+from src.pdf_workbench.editor_pages import clear_editor_page_cache
 from src.pdf_workbench.page_filters import clear_page_facts_cache
 from src.pdf_workbench.thumbnails import clear_thumbnail_cache
 from src.pdf_workbench.workspace import (
@@ -54,8 +55,12 @@ def reset_uploaded_documents() -> None:
         remove_unlisted_pdfs(workspace_directory, [])
 
     clear_thumbnail_cache()
+    clear_editor_page_cache()
     clear_page_facts_cache()
     clear_document_state()
+    st.session_state["document_revision"] = (
+        st.session_state.get("document_revision", 0) + 1
+    )
     st.session_state["pdf_upload_manifest"] = ()
     st.session_state.pop("pdf_upload_widget", None)
 
@@ -96,8 +101,12 @@ def show_upload_controls() -> None:
             stored_pdfs,
         )
         clear_thumbnail_cache()
+        clear_editor_page_cache()
         clear_page_facts_cache()
         clear_document_state()
+        st.session_state["document_revision"] = (
+            st.session_state.get("document_revision", 0) + 1
+        )
         st.session_state["workbench_docs"] = stored_pdfs
         st.session_state["pdf_upload_manifest"] = upload_manifest
         st.rerun()

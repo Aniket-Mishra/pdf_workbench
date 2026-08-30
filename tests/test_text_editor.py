@@ -7,7 +7,6 @@ import pytest
 from src.pdf_workbench.text_editor import (
     TextEdit,
     create_edited_pdf,
-    render_text_preview,
 )
 
 
@@ -78,7 +77,7 @@ def test_create_edited_pdf_uses_requested_size_and_position() -> None:
             page_index=0,
             text="Positioned text",
             font_size=30,
-            horizontal_position=0.75,
+            horizontal_position=0.25,
             vertical_position=0.8,
         )
 
@@ -96,8 +95,30 @@ def test_create_edited_pdf_uses_requested_size_and_position() -> None:
 
     assert len(text_spans) == 1
     assert text_spans[0]["size"] == pytest.approx(30)
-    assert text_spans[0]["bbox"][0] > page_rect.width * 0.45
-    assert text_spans[0]["bbox"][1] > page_rect.height * 0.6
+    assert text_spans[0]["origin"][0] == pytest.approx(
+        page_rect.width * 0.25,
+    )
+    assert text_spans[0]["origin"][1] == pytest.approx(
+        page_rect.height * 0.8 + 30,
+    )
+
+
+def test_create_edited_pdf_keeps_text_inside_right_edge() -> None:
+    with TemporaryDirectory() as temporary_directory_name:
+        pdf_path = Path(temporary_directory_name) / "source.pdf"
+        create_pdf_file(pdf_path, page_count=1)
+        text_edit = TextEdit(
+            page_index=0,
+            text="Visible text",
+            font_size=30,
+            horizontal_position=0.98,
+            vertical_position=0.5,
+        )
+
+        output_bytes = create_edited_pdf(pdf_path, [text_edit])
+
+    with pymupdf.open(stream=output_bytes, filetype="pdf") as document:
+        assert "Visible text" in document[0].get_text()
 
 
 def test_create_edited_pdf_rejects_text_that_does_not_fit() -> None:
@@ -124,15 +145,21 @@ def test_create_edited_pdf_rejects_unsupported_characters() -> None:
             )
 
 
-def test_render_text_preview_returns_png() -> None:
+def test_create_edited_pdf_rejects_text_below_page() -> None:
     with TemporaryDirectory() as temporary_directory_name:
         pdf_path = Path(temporary_directory_name) / "source.pdf"
         create_pdf_file(pdf_path, page_count=1)
 
-        preview_bytes = render_text_preview(
-            pdf_path,
-            0,
-            [create_text_edit(0, "Preview")],
-        )
-
-    assert preview_bytes.startswith(b"\x89PNG\r\n\x1a\n")
+        with pytest.raises(ValueError, match="too low"):
+            create_edited_pdf(
+                pdf_path,
+                [
+                    TextEdit(
+                        page_index=0,
+                        text="Too low",
+                        font_size=18,
+                        horizontal_position=0.5,
+                        vertical_position=1,
+                    )
+                ],
+            )

@@ -6,8 +6,6 @@ import pymupdf
 from src.pdf_workbench.basic_ops import validate_pdf
 
 
-PAGE_MARGIN_POINTS = 12
-PREVIEW_WIDTH_PIXELS = 800
 MINIMUM_FONT_SIZE = 8
 MAXIMUM_FONT_SIZE = 72
 
@@ -31,29 +29,6 @@ def create_edited_pdf(pdf_path: Path, text_edits: list[TextEdit]) -> bytes:
 
     validate_pdf(output_bytes)
     return output_bytes
-
-
-def render_text_preview(
-    pdf_path: Path,
-    page_index: int,
-    text_edits: list[TextEdit],
-) -> bytes:
-    with pymupdf.open(pdf_path) as document:
-        validate_page_index(document, page_index)
-        page_edits = [
-            text_edit
-            for text_edit in text_edits
-            if text_edit.page_index == page_index
-        ]
-        apply_text_edits(document, page_edits)
-        page = document[page_index]
-        scale = PREVIEW_WIDTH_PIXELS / page.rect.width
-        pixmap = page.get_pixmap(
-            matrix=pymupdf.Matrix(scale, scale),
-            colorspace=pymupdf.csRGB,
-            alpha=False,
-        )
-        return pixmap.tobytes("png")
 
 
 def apply_text_edits(
@@ -92,22 +67,22 @@ def insert_text_edit(page: pymupdf.Page, text_edit: TextEdit) -> None:
         fontname="helv",
         fontsize=text_edit.font_size,
     )
-    available_width = page.rect.width - 2 * PAGE_MARGIN_POINTS
-    if text_width > available_width:
+    if text_width > page.rect.width:
         raise ValueError("Text is too wide. Reduce its size or shorten it.")
-    available_height = page.rect.height - 2 * PAGE_MARGIN_POINTS
-    if text_edit.font_size > available_height:
+    if text_edit.font_size > page.rect.height:
         raise ValueError("Text is too tall. Reduce its size.")
 
-    horizontal_space = available_width - text_width
-    x_position = (
-        PAGE_MARGIN_POINTS
-        + horizontal_space * text_edit.horizontal_position
+    requested_x_position = page.rect.width * text_edit.horizontal_position
+    x_position = min(
+        requested_x_position,
+        page.rect.width - text_width,
     )
-    top_baseline = PAGE_MARGIN_POINTS + text_edit.font_size
-    bottom_baseline = page.rect.height - PAGE_MARGIN_POINTS
-    vertical_space = max(bottom_baseline - top_baseline, 0)
-    y_position = top_baseline + vertical_space * text_edit.vertical_position
+    y_position = (
+        page.rect.height * text_edit.vertical_position
+        + text_edit.font_size
+    )
+    if y_position > page.rect.height:
+        raise ValueError("Text is too low. Move it higher on the page.")
 
     page.insert_text(
         (x_position, y_position),

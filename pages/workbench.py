@@ -10,31 +10,55 @@ from src.pdf_workbench.basic_ops import (
 )
 from src.pdf_workbench.page_selector import select_pdf_pages
 from src.pdf_workbench.split_controls import show_split_controls
+from src.pdf_workbench.workspace import StoredPdf
+
+
+def show_page_selection(
+    stored_pdfs: list[StoredPdf],
+) -> dict[str, list[int]]:
+    selections: dict[str, list[int]] = {}
+    for stored_pdf in stored_pdfs:
+        expander_label = (
+            f"{stored_pdf.display_name} ({stored_pdf.page_count} pages)"
+        )
+        with st.expander(
+            expander_label,
+            expanded=len(stored_pdfs) <= 2,
+        ):
+            selections[stored_pdf.document_id] = select_pdf_pages(
+                pdf_path=stored_pdf.path,
+                content_hash=stored_pdf.content_hash,
+                document_id=stored_pdf.document_id,
+                page_count=stored_pdf.page_count,
+            )
+    return selections
 
 
 st.title("Workbench")
-st.caption("Select pages, merge PDFs, save selections, or extract contents.")
+selected_tool = st.segmented_control(
+    "Workbench tool",
+    ("Select pages", "Split PDFs"),
+    default="Select pages",
+    required=True,
+    key="workbench_tabs",
+    label_visibility="collapsed",
+)
 
 stored_pdfs = list(st.session_state.get("workbench_docs", []))
 if not stored_pdfs:
     st.info("Open PDFs in the viewer first.")
     st.stop()
 
-st.subheader("Select pages")
-st.caption("Click pages to limit the output. No selection uses every page.")
+if selected_tool == "Split PDFs":
+    st.subheader("Split PDFs", anchor="split-pdfs")
+    selections = show_page_selection(stored_pdfs)
+    st.divider()
+    show_split_controls(stored_pdfs, selections)
+    st.stop()
 
-selections: dict[str, list[int]] = {}
-for stored_pdf in stored_pdfs:
-    expander_label = (
-        f"{stored_pdf.display_name} ({stored_pdf.page_count} pages)"
-    )
-    with st.expander(expander_label, expanded=len(stored_pdfs) <= 2):
-        selections[stored_pdf.document_id] = select_pdf_pages(
-            pdf_path=stored_pdf.path,
-            content_hash=stored_pdf.content_hash,
-            document_id=stored_pdf.document_id,
-            page_count=stored_pdf.page_count,
-        )
+st.subheader("Select pages", anchor="select-pages")
+st.caption("No selection uses every page.")
+selections = show_page_selection(stored_pdfs)
 
 selected_page_count = sum(
     len(selected_pages) for selected_pages in selections.values()
@@ -134,5 +158,3 @@ if extract_contents:
         file_name="extracted_contents.zip",
         mime="application/zip",
     )
-
-show_split_controls(stored_pdfs, selections)

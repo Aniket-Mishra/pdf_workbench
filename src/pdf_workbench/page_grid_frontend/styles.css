@@ -83,8 +83,15 @@ body {
   border-radius: 10px;
 }
 
+body.organizer {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+
 body.organizer #viewport {
-  height: clamp(320px, 56vw, 560px);
+  flex: 1;
+  min-height: 320px;
   max-height: none;
 }
 

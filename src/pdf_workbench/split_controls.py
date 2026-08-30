@@ -17,8 +17,6 @@ def show_split_controls(
     stored_pdfs: list[StoredPdf],
     selections: dict[str, list[int]],
 ) -> None:
-    st.divider()
-    st.subheader("Split PDFs")
     split_mode = st.selectbox(
         "Split mode",
         ("Ranges", "Every N pages", "Selected pages"),

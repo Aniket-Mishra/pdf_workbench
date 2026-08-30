@@ -3,7 +3,6 @@ from pathlib import Path
 import streamlit as st
 
 st.title("PDF viewer")
-st.caption("Read PDFs here. Uploads stay open while you change tools.")
 
 documents = list(st.session_state.get("workbench_docs", []))
 if not documents:
@@ -42,14 +41,14 @@ else:
     file_size = f"{file_size_bytes / 1_000:.0f} KB"
 st.subheader(selected_document.display_name)
 st.caption(f"{selected_document.page_count} pages, {file_size}")
-st.caption("Ctrl or Cmd + scroll over the PDF to zoom.")
 controls_path = (
     Path(__file__).parents[1]
     / "src/pdf_workbench/pdf_viewer_controls.html"
 )
 st.html(controls_path, unsafe_allow_javascript=True)
-st.pdf(
-    selected_document.path,
-    height=800,
-    key=f"pdf_viewer:{selected_document.document_id}",
-)
+with st.container(key="pdf_viewer_workspace"):
+    st.pdf(
+        selected_document.path,
+        height=900,
+        key=f"pdf_viewer:{selected_document.document_id}",
+    )

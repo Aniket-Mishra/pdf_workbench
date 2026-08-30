@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="styles.css">
+    <script src="text_editor.js" type="module"></script>
+  </head>
+  <body>
+    <div id="editor-shell">
+      <div id="toolbar" role="toolbar" aria-label="Text editing tools">
+        <button id="add-text" type="button" aria-pressed="false">
+          Add text
+        </button>
+        <label id="font-size-label" for="font-size">Size</label>
+        <input
+          id="font-size"
+          type="number"
+          inputmode="numeric"
+          aria-labelledby="font-size-label"
+        >
+        <button id="undo" type="button" disabled>Undo</button>
+        <button id="delete-text" type="button" disabled>Delete</button>
+        <button id="clear-text" type="button" disabled>Clear</button>
+        <span id="status" aria-live="polite"></span>
+        <button id="build-pdf" class="primary" type="button">
+          Create PDF
+        </button>
+      </div>
+      <div id="viewport">
+        <main id="pages" aria-label="PDF pages"></main>
+        <p id="loading-status" aria-live="polite" hidden>
+          Loading more pages
+        </p>
+      </div>
+    </div>
+  </body>
+</html>

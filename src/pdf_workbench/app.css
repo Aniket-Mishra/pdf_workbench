@@ -42,6 +42,38 @@ p {
   outline-offset: 2px;
 }
 
+[data-testid="stMainBlockContainer"]:has(.st-key-editor_workspace),
+[data-testid="stMainBlockContainer"]:has(.st-key-pdf_viewer_workspace),
+[data-testid="stMainBlockContainer"]:has(.st-key-organizer_workspace),
+[data-testid="stMainBlockContainer"]:has(.st-key-workbench_tabs) {
+  max-width: none;
+  padding: 1rem 1rem 2rem;
+}
+
+.st-key-workbench_tabs [data-testid="stButtonGroup"] button {
+  min-height: 3rem !important;
+  padding: 0 1.25rem !important;
+}
+
+.st-key-workbench_tabs [data-testid="stButtonGroup"] button,
+.st-key-workbench_tabs [data-testid="stButtonGroup"] button p {
+  font-size: 1.1rem !important;
+  font-weight: 600 !important;
+}
+
+.st-key-editor_workspace iframe {
+  height: clamp(760px, calc(100dvh - 80px), 1100px) !important;
+}
+
+.st-key-organizer_workspace iframe {
+  height: clamp(820px, calc(100dvh - 80px), 1200px) !important;
+}
+
+.st-key-pdf_viewer_workspace [data-testid="stBidiComponentIsolated"],
+.st-key-pdf_viewer_workspace .stBidiComponent {
+  height: clamp(760px, calc(100dvh - 80px), 1200px) !important;
+}
+
 .stButton > button,
 .stDownloadButton > button {
   min-height: 2.75rem;
@@ -56,5 +88,15 @@ p {
   [data-testid="stMainBlockContainer"] {
     padding-right: 1rem;
     padding-left: 1rem;
+  }
+
+  .st-key-editor_workspace iframe,
+  .st-key-pdf_viewer_workspace [data-testid="stBidiComponentIsolated"],
+  .st-key-pdf_viewer_workspace .stBidiComponent {
+    height: clamp(680px, calc(100dvh - 80px), 900px) !important;
+  }
+
+  .st-key-organizer_workspace iframe {
+    height: clamp(720px, calc(100dvh - 80px), 960px) !important;
   }
 }

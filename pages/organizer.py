@@ -60,47 +60,50 @@ thumbnails_by_id = render_organizer_thumbnails(
     visible_page_references,
 )
 show_document_markers = len(documents) > 1
-grid_state = show_page_grid(
-    pages=[
-        PageThumbnail(
-            page_id=page.uid,
-            image_bytes=(
-                thumbnails_by_id[page.uid].image_bytes
-                if page.uid in thumbnails_by_id
-                else None
-            ),
-            image_mime_type=(
-                thumbnails_by_id[page.uid].mime_type
-                if page.uid in thumbnails_by_id
-                else "image/png"
-            ),
-            caption=f"Page {page.page_index + 1}",
-            document_number=(
-                page.document_index + 1 if show_document_markers else None
-            ),
-            document_name=(
-                documents[page.document_index].display_name
-                if show_document_markers
-                else None
-            ),
-        )
-        for page in page_references
-    ],
-    ordered_pages=[
-        GridPage(
-            page_id=page.instance_id,
-            source_page_id=page.source_page_id,
-            rotation=page.rotation,
-        )
-        for page in page_placements
-    ],
-    selected_ids=set(),
-    selectable=True,
-    reorderable=True,
-    visible_page_count=loaded_page_count,
-    key=organizer_grid_key,
-    reset_order_ids=initial_order,
-)
+with st.container(key="organizer_workspace"):
+    grid_state = show_page_grid(
+        pages=[
+            PageThumbnail(
+                page_id=page.uid,
+                image_bytes=(
+                    thumbnails_by_id[page.uid].image_bytes
+                    if page.uid in thumbnails_by_id
+                    else None
+                ),
+                image_mime_type=(
+                    thumbnails_by_id[page.uid].mime_type
+                    if page.uid in thumbnails_by_id
+                    else "image/png"
+                ),
+                caption=f"Page {page.page_index + 1}",
+                document_number=(
+                    page.document_index + 1
+                    if show_document_markers
+                    else None
+                ),
+                document_name=(
+                    documents[page.document_index].display_name
+                    if show_document_markers
+                    else None
+                ),
+            )
+            for page in page_references
+        ],
+        ordered_pages=[
+            GridPage(
+                page_id=page.instance_id,
+                source_page_id=page.source_page_id,
+                rotation=page.rotation,
+            )
+            for page in page_placements
+        ],
+        selected_ids=set(),
+        selectable=True,
+        reorderable=True,
+        visible_page_count=loaded_page_count,
+        key=organizer_grid_key,
+        reset_order_ids=initial_order,
+    )
 
 updated_page_placements = [
     PagePlacement(
