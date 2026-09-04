@@ -23,7 +23,6 @@ selected_page = st.navigation(
             st.Page("pages/viewer.py", title="PDF viewer", default=True),
             st.Page("pages/editor.py", title="Editor"),
             st.Page("pages/workbench.py", title="Workbench"),
-            st.Page("pages/organizer.py", title="Organizer"),
         ]
     },
     expanded=True,
