@@ -90,8 +90,16 @@ def find_contiguous_page_ranges(
 
 
 def validate_pdf(pdf_bytes: bytes) -> None:
-    with pikepdf.Pdf.open(io.BytesIO(pdf_bytes)) as document:
-        syntax_warnings = document.check_pdf_syntax()
+    try:
+        with pikepdf.Pdf.open(
+            io.BytesIO(pdf_bytes),
+            attempt_recovery=False,
+        ) as document:
+            page_count = len(document.pages)
+    except pikepdf.PdfError as error:
+        raise ValueError(
+            "Generated PDF failed structural validation."
+        ) from error
 
-    if syntax_warnings:
+    if page_count == 0:
         raise ValueError("Generated PDF failed structural validation.")

@@ -8,6 +8,7 @@ from src.pdf_workbench.basic_ops import (
     export_selected_pages,
     merge_selected,
 )
+from src.pdf_workbench.organizer_controls import show_organizer
 from src.pdf_workbench.page_selector import select_pdf_pages
 from src.pdf_workbench.split_controls import show_split_controls
 from src.pdf_workbench.workspace import StoredPdf
@@ -37,7 +38,7 @@ def show_page_selection(
 st.title("Workbench")
 selected_tool = st.segmented_control(
     "Workbench tool",
-    ("Select pages", "Split PDFs"),
+    ("Select pages", "Split PDFs", "Organizer"),
     default="Select pages",
     required=True,
     key="workbench_tabs",
@@ -47,6 +48,10 @@ selected_tool = st.segmented_control(
 stored_pdfs = list(st.session_state.get("workbench_docs", []))
 if not stored_pdfs:
     st.info("Open PDFs in the viewer first.")
+    st.stop()
+
+if selected_tool == "Organizer":
+    show_organizer(stored_pdfs)
     st.stop()
 
 if selected_tool == "Split PDFs":

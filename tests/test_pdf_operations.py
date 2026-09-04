@@ -1,13 +1,17 @@
+import io
 from hashlib import sha256
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
+import pikepdf
 import pymupdf
+import pytest
 
 from src.pdf_workbench.basic_ops import (
     export_selected_pages,
     find_contiguous_page_ranges,
     merge_selected,
+    validate_pdf,
 )
 from src.pdf_workbench.organizer import (
     PagePlacement,
@@ -48,6 +52,14 @@ def test_contiguous_page_ranges_preserve_order() -> None:
         (5, 5),
         (7, 8),
     ]
+
+
+def test_pdf_validation_rejects_invalid_bytes() -> None:
+    with pytest.raises(
+        ValueError,
+        match="Generated PDF failed structural validation",
+    ):
+        validate_pdf(b"not a PDF")
 
 
 def test_merge_selected_copies_requested_pages() -> None:
@@ -186,3 +198,41 @@ def test_organizer_merge_duplicates_and_rotates_pages() -> None:
 
     assert page_texts == ["Page 1", "Page 1", "Page 2"]
     assert page_rotations == [90, 180, 0]
+
+
+def test_organizer_merge_accepts_recoverable_pdf_warnings() -> None:
+    source_stream = io.BytesIO()
+    with pikepdf.Pdf.new() as source_document:
+        page = source_document.add_blank_page()
+        page.Contents = pikepdf.Stream(source_document, b"q\nQ\n")
+        source_document.save(
+            source_stream,
+            compress_streams=False,
+            object_stream_mode=pikepdf.ObjectStreamMode.disable,
+        )
+
+    source_bytes = source_stream.getvalue().replace(
+        b"/Length 4",
+        b"/Length 6",
+        1,
+    )
+    with TemporaryDirectory() as temporary_directory_name:
+        pdf_path = Path(temporary_directory_name) / "recoverable.pdf"
+        pdf_path.write_bytes(source_bytes)
+        document = StoredPdf(
+            document_id="test:recoverable:0",
+            content_hash="recoverable",
+            display_name="recoverable.pdf",
+            path=pdf_path,
+            page_count=1,
+        )
+        output_bytes = merge_pages_in_order(
+            [document],
+            [PagePlacement("first", "0:0")],
+        )
+
+    with pikepdf.Pdf.open(
+        io.BytesIO(output_bytes),
+        attempt_recovery=False,
+    ) as output_document:
+        assert len(output_document.pages) == 1
