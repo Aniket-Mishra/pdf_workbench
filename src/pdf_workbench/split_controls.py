@@ -13,15 +13,14 @@ from src.pdf_workbench.split import (
 from src.pdf_workbench.workspace import StoredPdf
 
 
+SPLIT_MODES = ("Ranges", "Every N pages", "Selected pages")
+
+
 def show_split_controls(
     stored_pdfs: list[StoredPdf],
     selections: dict[str, list[int]],
+    split_mode: str,
 ) -> None:
-    split_mode = st.selectbox(
-        "Split mode",
-        ("Ranges", "Every N pages", "Selected pages"),
-    )
-
     split_ranges = ""
     pages_per_file = 10
     if split_mode == "Ranges":
@@ -32,29 +31,22 @@ def show_split_controls(
         )
     elif split_mode == "Every N pages":
         pages_per_file = int(
-            st.number_input(
-                "Pages per file",
-                min_value=1,
-                value=10,
-                step=1,
-            )
+            st.number_input("Pages per file", min_value=1, value=10, step=1)
         )
     else:
         st.caption("Each selected page becomes a separate PDF.")
 
-    if not st.button("Split PDFs", use_container_width=True):
+    if not st.button("Split PDFs", width="stretch"):
         return
 
     try:
         with st.spinner("Splitting PDFs..."):
-            output_name, output_bytes, output_mime_type = (
-                build_split_download(
-                    stored_pdfs,
-                    selections,
-                    split_mode,
-                    split_ranges,
-                    pages_per_file,
-                )
+            output_name, output_bytes, output_mime_type = build_split_download(
+                stored_pdfs,
+                selections,
+                split_mode,
+                split_ranges,
+                pages_per_file,
             )
     except ValueError as error:
         st.error(str(error))
@@ -65,6 +57,7 @@ def show_split_controls(
         data=output_bytes,
         file_name=output_name,
         mime=output_mime_type,
+        width="stretch",
         on_click="ignore",
     )
 
@@ -80,13 +73,11 @@ def build_split_download(
     for document_number, stored_pdf in enumerate(stored_pdfs, 1):
         if split_mode == "Ranges":
             page_groups = parse_split_ranges(
-                split_ranges,
-                stored_pdf.page_count,
+                split_ranges, stored_pdf.page_count
             )
         elif split_mode == "Every N pages":
             page_groups = group_pages_by_count(
-                stored_pdf.page_count,
-                pages_per_file,
+                stored_pdf.page_count, pages_per_file
             )
         elif split_mode == "Selected pages":
             selected_pages = selections.get(stored_pdf.document_id, [])
@@ -110,27 +101,25 @@ def build_split_download(
             len(stored_pdfs),
             part_number=1,
         )
-        output_bytes, = iter_split_pdf_parts(stored_pdf.path, page_groups)
+        (output_bytes,) = iter_split_pdf_parts(stored_pdf.path, page_groups)
         return output_name, output_bytes, "application/pdf"
 
     split_archive = io.BytesIO()
-    with zipfile.ZipFile(
-        split_archive,
-        "w",
-        compression=zipfile.ZIP_DEFLATED,
-    ) as zip_file:
+    with zipfile.ZipFile(split_archive, "w", zipfile.ZIP_DEFLATED) as zip_file:
         for document_number, stored_pdf, page_groups in split_plan:
             for part_number, output_bytes in enumerate(
                 iter_split_pdf_parts(stored_pdf.path, page_groups),
                 1,
             ):
-                output_name = create_split_name(
-                    stored_pdf,
-                    document_number,
-                    len(stored_pdfs),
-                    part_number,
+                zip_file.writestr(
+                    create_split_name(
+                        stored_pdf,
+                        document_number,
+                        len(stored_pdfs),
+                        part_number,
+                    ),
+                    output_bytes,
                 )
-                zip_file.writestr(output_name, output_bytes)
 
     return "split_pdfs.zip", split_archive.getvalue(), "application/zip"
 

@@ -1,93 +1,67 @@
-from dataclasses import dataclass
-
 import pymupdf
 
 from src.pdf_workbench.basic_ops import validate_pdf
-from src.pdf_workbench.thumbnails import (
-    RenderedThumbnail,
-    render_page_thumbnails,
+from src.pdf_workbench.page_grid import GridPage
+from src.pdf_workbench.page_images import (
+    THUMBNAIL_WIDTH,
+    RenderedPage,
+    render_pages,
 )
 from src.pdf_workbench.workspace import StoredPdf
 
 
-@dataclass(frozen=True)
-class PageReference:
-    document_index: int
-    page_index: int
-    uid: str
-
-
-@dataclass(frozen=True)
-class PagePlacement:
-    instance_id: str
-    source_page_id: str
-    rotation: int = 0
-
-
-def build_page_references(documents: list[StoredPdf]) -> list[PageReference]:
-    page_references: list[PageReference] = []
-    for document_index, document in enumerate(documents):
-        for page_index in range(document.page_count):
-            page_references.append(
-                PageReference(
-                    document_index=document_index,
-                    page_index=page_index,
-                    uid=f"{document_index}:{page_index}",
-                )
-            )
-    return page_references
-
-
-def create_initial_page_placements(
-    page_references: list[PageReference],
-) -> list[PagePlacement]:
+def list_page_ids(documents: list[StoredPdf]) -> list[str]:
+    """Every page across the open PDFs as "document_index:page_index"."""
     return [
-        PagePlacement(
-            instance_id=page.uid,
-            source_page_id=page.uid,
-        )
-        for page in page_references
+        f"{document_index}:{page_index}"
+        for document_index, document in enumerate(documents)
+        for page_index in range(document.page_count)
     ]
+
+
+def split_page_id(page_id: str) -> tuple[int, int]:
+    document_index, page_index = page_id.split(":")
+    return int(document_index), int(page_index)
 
 
 def render_organizer_thumbnails(
     documents: list[StoredPdf],
-    visible_pages: list[PageReference],
-) -> dict[str, RenderedThumbnail]:
-    pages_by_document: dict[int, list[PageReference]] = {}
-    for page in visible_pages:
-        pages_by_document.setdefault(page.document_index, []).append(page)
-
-    thumbnails_by_uid: dict[str, RenderedThumbnail] = {}
-    for document_index, pages in pages_by_document.items():
-        pages.sort(key=lambda page: page.page_index)
-        page_numbers = tuple(page.page_index for page in pages)
-        thumbnails = render_page_thumbnails(
-            documents[document_index].content_hash,
-            str(documents[document_index].path),
-            page_numbers,
+    page_ids: set[str],
+) -> dict[str, RenderedPage]:
+    page_numbers_by_document: dict[int, list[int]] = {}
+    for page_id in page_ids:
+        document_index, page_index = split_page_id(page_id)
+        page_numbers_by_document.setdefault(document_index, []).append(
+            page_index
         )
-        for page, thumbnail in zip(pages, thumbnails):
-            thumbnails_by_uid[page.uid] = thumbnail
 
-    return thumbnails_by_uid
+    thumbnails_by_id: dict[str, RenderedPage] = {}
+    for document_index, page_numbers in page_numbers_by_document.items():
+        document = documents[document_index]
+        for thumbnail in render_pages(
+            document.content_hash,
+            str(document.path),
+            tuple(sorted(page_numbers)),
+            THUMBNAIL_WIDTH,
+        ):
+            thumbnails_by_id[f"{document_index}:{thumbnail.page_index}"] = (
+                thumbnail
+            )
+    return thumbnails_by_id
 
 
 def merge_pages_in_order(
     documents: list[StoredPdf],
-    page_placements: list[PagePlacement],
+    pages: list[GridPage],
 ) -> bytes:
-    if not page_placements:
+    if not pages:
         raise ValueError("Keep at least one page in the organizer.")
 
     output_document = pymupdf.open()
     opened_documents: dict[int, pymupdf.Document] = {}
     try:
-        for page_placement in page_placements:
-            document_index, page_index = map(
-                int,
-                page_placement.source_page_id.split(":"),
-            )
+        for page in pages:
+            document_index, page_index = split_page_id(page.source_page_id)
             if document_index not in opened_documents:
                 opened_documents[document_index] = pymupdf.open(
                     documents[document_index].path
@@ -99,7 +73,7 @@ def merge_pages_in_order(
             )
             output_page = output_document[-1]
             output_page.set_rotation(
-                (output_page.rotation + page_placement.rotation) % 360
+                (output_page.rotation + page.rotation) % 360
             )
         output_bytes = output_document.tobytes()
     finally:

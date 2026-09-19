@@ -1,11 +1,11 @@
-from base64 import b64encode
 from dataclasses import dataclass
 from math import isfinite
 from pathlib import Path
 
+import streamlit as st
 import streamlit.components.v1 as components
 
-from src.pdf_workbench.editor_pages import RenderedEditorPage
+from src.pdf_workbench.page_images import RenderedPage
 from src.pdf_workbench.text_editor import (
     MAXIMUM_FONT_SIZE,
     MINIMUM_FONT_SIZE,
@@ -20,13 +20,11 @@ MAXIMUM_TEXT_LENGTH = 500
 class TextEditorState:
     text_edits: tuple[TextEdit, ...]
     action: str | None
-    action_id: str | None
 
 
-frontend_directory = Path(__file__).parent / "text_editor_frontend"
 text_editor_component = components.declare_component(
     "text_editor_canvas",
-    path=frontend_directory,
+    path=Path(__file__).parent / "text_editor_frontend",
 )
 
 
@@ -110,7 +108,7 @@ def is_valid_position(value: object) -> bool:
 
 def show_text_editor(
     document_id: str,
-    pages: list[RenderedEditorPage],
+    pages: list[RenderedPage],
     page_count: int,
     text_edits: list[TextEdit],
     download_ready: bool,
@@ -127,10 +125,7 @@ def show_text_editor(
         pages=[
             {
                 "page_index": page.page_index,
-                "image": (
-                    f"data:{page.mime_type};base64,"
-                    + b64encode(page.image_bytes).decode("ascii")
-                ),
+                "image": page.image_url,
                 "width_points": page.width_points,
                 "height_points": page.height_points,
             }
@@ -155,15 +150,17 @@ def show_text_editor(
     if parsed_text_edits is None:
         parsed_text_edits = tuple(text_edits)
 
+    # Streamlit re-sends the last value on every rerun; act on an id once.
     action = component_value.get("action")
-    if action not in {"change", "load_more", "build"}:
-        action = None
     action_id = component_value.get("action_id")
-    if not isinstance(action_id, str):
-        action_id = None
+    claimed_key = f"claimed_action:{key}"
+    if (
+        action not in {"build", "load_more"}
+        or not isinstance(action_id, str)
+        or st.session_state.get(claimed_key) == action_id
+    ):
+        action = None
+    else:
+        st.session_state[claimed_key] = action_id
 
-    return TextEditorState(
-        text_edits=parsed_text_edits,
-        action=action,
-        action_id=action_id,
-    )
+    return TextEditorState(text_edits=parsed_text_edits, action=action)

@@ -18,16 +18,12 @@ p {
   max-width: 18rem;
 }
 
-[data-testid="stSidebar"] h1 {
-  font-size: 1.6rem;
-}
-
 [data-testid="stSidebarNav"] {
   padding-top: 0.75rem;
 }
 
 [data-testid="stSidebarNavLink"] {
-  min-height: 3.25rem;
+  min-height: 3rem;
   margin: 0.25rem 0;
   border-radius: 0.5rem;
 }
@@ -42,36 +38,29 @@ p {
   outline-offset: 2px;
 }
 
-[data-testid="stMainBlockContainer"]:has(.st-key-editor_workspace),
-[data-testid="stMainBlockContainer"]:has(.st-key-pdf_viewer_workspace),
-[data-testid="stMainBlockContainer"]:has(.st-key-organizer_workspace),
-[data-testid="stMainBlockContainer"]:has(.st-key-workbench_tabs) {
+/* Every page is a workspace: use the full width and skip Streamlit's tall top gap. */
+[data-testid="stMainBlockContainer"] {
   max-width: none;
-  padding: 1rem 1rem 2rem;
+  padding: 1.5rem 1.5rem 2rem;
 }
 
 .st-key-workbench_tabs [data-testid="stButtonGroup"] button {
-  min-height: 3rem !important;
-  padding: 0 1.25rem !important;
+  min-height: 2.75rem;
+  padding: 0 1.25rem;
 }
 
-.st-key-workbench_tabs [data-testid="stButtonGroup"] button,
 .st-key-workbench_tabs [data-testid="stButtonGroup"] button p {
-  font-size: 1.1rem !important;
-  font-weight: 600 !important;
+  font-size: 1.05rem;
+  font-weight: 600;
 }
 
+/* Component iframes size themselves to the window; Streamlit's default is 150px. */
 .st-key-editor_workspace iframe {
   height: clamp(760px, calc(100dvh - 80px), 1100px) !important;
 }
 
 .st-key-organizer_workspace iframe {
   height: clamp(820px, calc(100dvh - 80px), 1200px) !important;
-}
-
-.st-key-pdf_viewer_workspace [data-testid="stBidiComponentIsolated"],
-.st-key-pdf_viewer_workspace .stBidiComponent {
-  height: clamp(760px, calc(100dvh - 80px), 1200px) !important;
 }
 
 .stButton > button,
@@ -86,13 +75,10 @@ p {
   }
 
   [data-testid="stMainBlockContainer"] {
-    padding-right: 1rem;
-    padding-left: 1rem;
+    padding: 1rem 1rem 2rem;
   }
 
-  .st-key-editor_workspace iframe,
-  .st-key-pdf_viewer_workspace [data-testid="stBidiComponentIsolated"],
-  .st-key-pdf_viewer_workspace .stBidiComponent {
+  .st-key-editor_workspace iframe {
     height: clamp(680px, calc(100dvh - 80px), 900px) !important;
   }
 

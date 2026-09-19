@@ -33,6 +33,7 @@ let selectable = false;
 let reorderable = false;
 let copySequence = 0;
 let lastFrameHeight = 0;
+let lastRenderSignature = "";
 let initialized = false;
 let visiblePageCount = 0;
 let loadingMorePages = false;
@@ -164,12 +165,19 @@ function togglePage(pageId) {
   if (!selectable) {
     return;
   }
-  if (selectedPageIds.has(pageId)) {
-    selectedPageIds.delete(pageId);
-  } else {
+  const selected = !selectedPageIds.has(pageId);
+  if (selected) {
     selectedPageIds.add(pageId);
+  } else {
+    selectedPageIds.delete(pageId);
   }
-  renderGrid(pageId);
+  // Only this card changes, so skip rebuilding the whole grid.
+  const card = grid.querySelector(`[data-page-id="${CSS.escape(pageId)}"]`);
+  if (card) {
+    card.classList.toggle("selected", selected);
+    card.setAttribute("aria-pressed", String(selected));
+  }
+  updateActionButtons();
   showStatus(`${selectedPageIds.size} selected`);
   if (!reorderable) {
     sendGridState();
@@ -278,7 +286,11 @@ function duplicateSelectedPages() {
   orderedPages = duplicateResult.pages;
   selectedPageIds = new Set(duplicateResult.duplicatedPageIds);
   renderGrid(duplicateResult.duplicatedPageIds[0]);
-  showStatus(`${duplicateResult.duplicatedPageIds.length} page(s) duplicated`);
+  showStatus(`${describePages(duplicateResult.duplicatedPageIds.length)} duplicated`);
+}
+
+function describePages(count) {
+  return count === 1 ? "1 page" : `${count} pages`;
 }
 
 function deleteSelectedPages() {
@@ -295,7 +307,7 @@ function deleteSelectedPages() {
   orderedPages = deletePages(orderedPages, selectedPageIds);
   selectedPageIds.clear();
   renderGrid();
-  showStatus(`${deletedPageCount} page(s) deleted`);
+  showStatus(`${describePages(deletedPageCount)} deleted`);
 }
 
 function undoOrganizerChange() {
@@ -359,7 +371,20 @@ window.addEventListener("message", (event) => {
   document.body.classList.toggle("organizer", reorderable);
   organizerActions.hidden = !reorderable;
   applyTheme(event.data.theme);
-  renderGrid();
+
+  // Streamlit re-renders after every interaction, usually with the same
+  // pages. Rebuilding the cards would make the browser decode every
+  // thumbnail again, so only do it when something visible changed.
+  const renderSignature = [
+    visiblePageCount,
+    selectable,
+    reorderable,
+    pageSources.map((sourcePage) => sourcePage.image ? 1 : 0).join(""),
+  ].join("|");
+  if (pagesChanged || renderSignature !== lastRenderSignature) {
+    renderGrid();
+  }
+  lastRenderSignature = renderSignature;
   requestAnimationFrame(updateFrameHeight);
 });
 
@@ -383,7 +408,7 @@ duplicateButton.addEventListener("click", duplicateSelectedPages);
 deleteButton.addEventListener("click", deleteSelectedPages);
 resetOrderButton.addEventListener("click", resetOrganizer);
 buildPdfButton.addEventListener("click", () => {
-  showStatus("Building PDF");
+  showStatus("Building PDF, the download appears below");
   sendGridState("build");
 });
 document.addEventListener("keydown", (event) => {

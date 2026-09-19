@@ -106,8 +106,8 @@ body.organizer #viewport {
 }
 
 #organizer-actions {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(112px, 1fr));
+  display: flex;
+  flex-wrap: wrap;
   gap: 8px;
   align-items: center;
   margin-top: 12px;
@@ -118,8 +118,10 @@ body.organizer #viewport {
 }
 
 #organizer-actions button {
+  flex: 1 1 120px;
   min-height: 44px;
   padding: 0 12px;
+  white-space: nowrap;
   color: inherit;
   background: var(--secondary-background-color, #f4f4f4);
   border: 1px solid color-mix(in srgb, currentColor 22%, transparent);
@@ -143,15 +145,15 @@ body.organizer #viewport {
   outline-offset: 2px;
 }
 
-#build-pdf {
-  grid-column: 1 / -1;
-  color: #fff !important;
-  background: var(--primary-color, #ff4b4b) !important;
-  border-color: transparent !important;
+#organizer-actions #build-pdf {
+  flex-basis: 100%;
+  color: #fff;
+  background: var(--primary-color, #ff4b4b);
+  border-color: transparent;
 }
 
 #order-status {
-  grid-column: 1 / -1;
+  flex-basis: 100%;
   min-width: 0;
   min-height: 20px;
   font-size: 14px;
@@ -284,12 +286,7 @@ body.organizer #viewport {
     gap: 8px;
   }
 
-  #organizer-actions {
-    grid-template-columns: 1fr 1fr;
-    gap: 8px;
-  }
-
   #organizer-actions button {
-    padding: 0 12px;
+    flex-basis: 40%;
   }
 }

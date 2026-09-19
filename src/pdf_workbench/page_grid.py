@@ -1,16 +1,19 @@
-from base64 import b64encode
 from dataclasses import dataclass
 from pathlib import Path
 
+import streamlit as st
 import streamlit.components.v1 as components
+
+
+# Thumbnails loaded per scroll step in both the selector and the organizer.
+GRID_LOAD_BATCH_SIZE = 36
 
 
 @dataclass(frozen=True)
 class PageThumbnail:
     page_id: str
-    image_bytes: bytes | None
     caption: str
-    image_mime_type: str = "image/png"
+    image_url: str | None = None
     document_number: int | None = None
     document_name: str | None = None
 
@@ -27,13 +30,11 @@ class PageGridState:
     ordered_pages: tuple[GridPage, ...]
     selected_ids: tuple[str, ...]
     action: str | None
-    action_id: str | None
 
 
-frontend_directory = Path(__file__).parent / "page_grid_frontend"
 page_grid_component = components.declare_component(
     "page_grid",
-    path=frontend_directory,
+    path=Path(__file__).parent / "page_grid_frontend",
 )
 
 
@@ -44,22 +45,15 @@ def show_page_grid(
     reorderable: bool,
     key: str,
     ordered_pages: list[GridPage] | None = None,
-    reset_order_ids: list[str] | None = None,
     visible_page_count: int | None = None,
 ) -> PageGridState:
     source_page_ids = {page.page_id for page in pages}
-    default_ordered_pages = ordered_pages or [
-        GridPage(page_id=page.page_id, source_page_id=page.page_id)
-        for page in pages
-    ]
-    reset_page_ids = reset_order_ids or [
-        page.page_id for page in default_ordered_pages
-    ]
-    if (
-        len(reset_page_ids) != len(set(reset_page_ids))
-        or any(page_id not in source_page_ids for page_id in reset_page_ids)
-    ):
-        reset_page_ids = [page.page_id for page in pages]
+    if ordered_pages is None:
+        ordered_pages = [
+            GridPage(page.page_id, page.page_id) for page in pages
+        ]
+    if visible_page_count is None:
+        visible_page_count = len(ordered_pages)
 
     default_value = {
         "ordered_pages": [
@@ -68,32 +62,21 @@ def show_page_grid(
                 "source_id": page.source_page_id,
                 "rotation": page.rotation,
             }
-            for page in default_ordered_pages
+            for page in ordered_pages
         ],
         "selected_ids": [
             page.page_id
-            for page in default_ordered_pages
+            for page in ordered_pages
             if page.page_id in selected_ids
         ],
         "action": None,
         "action_id": None,
     }
-    if visible_page_count is None:
-        visible_page_count = len(default_ordered_pages)
-    visible_page_count = max(
-        0,
-        min(visible_page_count, len(default_ordered_pages)),
-    )
     component_value = page_grid_component(
         pages=[
             {
                 "id": page.page_id,
-                "image": (
-                    f"data:{page.image_mime_type};base64,"
-                    + b64encode(page.image_bytes).decode("ascii")
-                    if page.image_bytes is not None
-                    else None
-                ),
+                "image": page.image_url,
                 "caption": page.caption,
                 "document_number": page.document_number,
                 "document_name": page.document_name,
@@ -101,51 +84,50 @@ def show_page_grid(
             for page in pages
         ],
         ordered_pages=default_value["ordered_pages"],
-        reset_order_ids=reset_page_ids,
+        reset_order_ids=[page.page_id for page in pages],
         selected_ids=default_value["selected_ids"],
         selectable=selectable,
         reorderable=reorderable,
-        visible_page_count=visible_page_count,
+        visible_page_count=max(0, min(visible_page_count, len(ordered_pages))),
         default=default_value,
         key=key,
     )
-
     if not isinstance(component_value, dict):
         component_value = default_value
 
-    parsed_ordered_pages = parse_ordered_pages(
+    parsed_pages = parse_ordered_pages(
         component_value.get("ordered_pages"),
         source_page_ids,
     )
-    if not parsed_ordered_pages:
-        parsed_ordered_pages = tuple(default_ordered_pages)
-    if not reorderable and parsed_ordered_pages != tuple(
-        default_ordered_pages
-    ):
-        parsed_ordered_pages = tuple(default_ordered_pages)
+    if not parsed_pages or not reorderable:
+        parsed_pages = tuple(ordered_pages)
 
-    active_page_ids = {page.page_id for page in parsed_ordered_pages}
-    selected_id_values = component_value.get("selected_ids", [])
-    if not isinstance(selected_id_values, list):
-        selected_id_values = []
-    selected_page_ids = tuple(
-        page_id
-        for page_id in selected_id_values
-        if page_id in active_page_ids
-    )
+    active_page_ids = {page.page_id for page in parsed_pages}
+    selected_values = component_value.get("selected_ids")
+    if not isinstance(selected_values, list):
+        selected_values = []
 
+    # Streamlit re-sends the last value on every rerun; act on an id once.
     action = component_value.get("action")
-    if action not in {"build", "load_more"}:
-        action = None
     action_id = component_value.get("action_id")
-    if not isinstance(action_id, str):
-        action_id = None
+    claimed_key = f"claimed_action:{key}"
+    if (
+        action not in {"build", "load_more"}
+        or not isinstance(action_id, str)
+        or st.session_state.get(claimed_key) == action_id
+    ):
+        action = None
+    else:
+        st.session_state[claimed_key] = action_id
 
     return PageGridState(
-        ordered_pages=parsed_ordered_pages,
-        selected_ids=selected_page_ids,
+        ordered_pages=parsed_pages,
+        selected_ids=tuple(
+            page_id
+            for page_id in selected_values
+            if page_id in active_page_ids
+        ),
         action=action,
-        action_id=action_id,
     )
 
 
@@ -153,6 +135,7 @@ def parse_ordered_pages(
     ordered_page_values: object,
     source_page_ids: set[str],
 ) -> tuple[GridPage, ...]:
+    """Validate the order sent back by the browser; reject anything odd."""
     if not isinstance(ordered_page_values, list):
         return ()
 
@@ -178,12 +161,6 @@ def parse_ordered_pages(
             return ()
 
         used_page_ids.add(page_id)
-        ordered_pages.append(
-            GridPage(
-                page_id=page_id,
-                source_page_id=source_page_id,
-                rotation=rotation,
-            )
-        )
+        ordered_pages.append(GridPage(page_id, source_page_id, rotation))
 
     return tuple(ordered_pages)

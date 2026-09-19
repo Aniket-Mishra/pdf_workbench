@@ -13,14 +13,13 @@ from src.pdf_workbench.basic_ops import (
     merge_selected,
     validate_pdf,
 )
-from src.pdf_workbench.organizer import (
-    PagePlacement,
-    merge_pages_in_order,
-)
-from src.pdf_workbench.thumbnails import (
-    RenderedThumbnail,
-    THUMBNAIL_BATCH_SIZE,
-    render_page_thumbnails,
+from src.pdf_workbench.organizer import merge_pages_in_order
+from src.pdf_workbench.page_grid import GridPage
+from src.pdf_workbench.page_images import (
+    RENDER_BATCH_SIZE,
+    THUMBNAIL_WIDTH,
+    RenderedPage,
+    render_pages,
 )
 from src.pdf_workbench.workspace import StoredPdf
 
@@ -97,18 +96,18 @@ def test_thumbnail_rendering_uses_requested_pages_only() -> None:
     with TemporaryDirectory() as temporary_directory_name:
         pdf_path = Path(temporary_directory_name) / "source.pdf"
         create_pdf_file(pdf_path, page_count=30)
-        thumbnails = render_page_thumbnails(
+        thumbnails = render_pages(
             sha256(pdf_path.read_bytes()).hexdigest(),
             str(pdf_path),
             (10, 11, 12),
+            THUMBNAIL_WIDTH,
         )
 
-    assert len(thumbnails) == 3
+    assert [thumbnail.page_index for thumbnail in thumbnails] == [10, 11, 12]
     assert all(
-        thumbnail.mime_type in {"image/jpeg", "image/png"}
+        thumbnail.image_url.startswith("data:image/")
         for thumbnail in thumbnails
     )
-    assert all(thumbnail.image_bytes for thumbnail in thumbnails)
 
 
 def test_thumbnail_rendering_returns_every_page_in_bounded_batches(
@@ -116,35 +115,36 @@ def test_thumbnail_rendering_returns_every_page_in_bounded_batches(
 ) -> None:
     rendered_page_batches: list[tuple[int, ...]] = []
 
-    def render_thumbnail_batch(
+    def render_page_batch(
         content_hash: str,
         pdf_path: str,
         page_numbers: tuple[int, ...],
-        thumbnail_width: int,
-    ) -> list[RenderedThumbnail]:
+        image_width: int,
+    ) -> list[RenderedPage]:
         rendered_page_batches.append(page_numbers)
         return [
-            RenderedThumbnail(b"thumbnail", "image/png")
-            for _ in page_numbers
+            RenderedPage(page_number, "data:image/png;base64,", 612, 792)
+            for page_number in page_numbers
         ]
 
     monkeypatch.setattr(
-        "src.pdf_workbench.thumbnails.render_thumbnail_batch",
-        render_thumbnail_batch,
+        "src.pdf_workbench.page_images.render_page_batch",
+        render_page_batch,
     )
-    page_count = 100
+    page_count = RENDER_BATCH_SIZE * 2 + 5
     page_numbers = tuple(range(page_count))
 
-    thumbnails = render_page_thumbnails(
+    thumbnails = render_pages(
         "source",
         "source.pdf",
         page_numbers,
+        THUMBNAIL_WIDTH,
     )
 
     assert [len(batch) for batch in rendered_page_batches] == [
-        THUMBNAIL_BATCH_SIZE,
-        THUMBNAIL_BATCH_SIZE,
-        page_count - THUMBNAIL_BATCH_SIZE * 2,
+        RENDER_BATCH_SIZE,
+        RENDER_BATCH_SIZE,
+        5,
     ]
     assert len(thumbnails) == page_count
 
@@ -163,9 +163,9 @@ def test_organizer_merge_uses_thumbnail_order() -> None:
         output_bytes = merge_pages_in_order(
             [document],
             [
-                PagePlacement("third", "0:2"),
-                PagePlacement("first", "0:0"),
-                PagePlacement("second", "0:1"),
+                GridPage("third", "0:2"),
+                GridPage("first", "0:0"),
+                GridPage("second", "0:1"),
             ],
         )
 
@@ -186,9 +186,9 @@ def test_organizer_merge_duplicates_and_rotates_pages() -> None:
         output_bytes = merge_pages_in_order(
             [document],
             [
-                PagePlacement("first", "0:0", rotation=90),
-                PagePlacement("first-copy", "0:0", rotation=180),
-                PagePlacement("second", "0:1"),
+                GridPage("first", "0:0", rotation=90),
+                GridPage("first-copy", "0:0", rotation=180),
+                GridPage("second", "0:1"),
             ],
         )
 
@@ -228,7 +228,7 @@ def test_organizer_merge_accepts_recoverable_pdf_warnings() -> None:
         )
         output_bytes = merge_pages_in_order(
             [document],
-            [PagePlacement("first", "0:0")],
+            [GridPage("first", "0:0")],
         )
 
     with pikepdf.Pdf.open(
