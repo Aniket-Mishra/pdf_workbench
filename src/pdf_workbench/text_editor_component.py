@@ -5,6 +5,16 @@ from pathlib import Path
 import streamlit as st
 import streamlit.components.v1 as components
 
+from src.pdf_workbench.marks import (
+    FILL_OPACITY,
+    MAXIMUM_LINE_WIDTH,
+    MAXIMUM_MARKS,
+    MAXIMUM_POINTS,
+    MINIMUM_LINE_WIDTH,
+    Mark,
+    parse_marks,
+    serialize_marks,
+)
 from src.pdf_workbench.page_images import RenderedPage
 from src.pdf_workbench.text_editor import (
     MAXIMUM_FONT_SIZE,
@@ -19,6 +29,7 @@ MAXIMUM_TEXT_LENGTH = 500
 @dataclass(frozen=True)
 class TextEditorState:
     text_edits: tuple[TextEdit, ...]
+    marks: tuple[Mark, ...]
     action: str | None
 
 
@@ -111,12 +122,15 @@ def show_text_editor(
     pages: list[RenderedPage],
     page_count: int,
     text_edits: list[TextEdit],
+    marks: list[Mark],
     download_ready: bool,
     key: str,
 ) -> TextEditorState:
     serialized_text_edits = serialize_text_edits(text_edits)
+    serialized_marks = serialize_marks(marks)
     default_value = {
         "text_edits": serialized_text_edits,
+        "marks": serialized_marks,
         "action": None,
         "action_id": None,
     }
@@ -133,9 +147,15 @@ def show_text_editor(
         ],
         page_count=page_count,
         text_edits=serialized_text_edits,
+        marks=serialized_marks,
         minimum_font_size=MINIMUM_FONT_SIZE,
         maximum_font_size=MAXIMUM_FONT_SIZE,
         maximum_text_length=MAXIMUM_TEXT_LENGTH,
+        minimum_line_width=MINIMUM_LINE_WIDTH,
+        maximum_line_width=MAXIMUM_LINE_WIDTH,
+        maximum_marks=MAXIMUM_MARKS,
+        maximum_points=MAXIMUM_POINTS,
+        fill_opacity=FILL_OPACITY,
         download_ready=download_ready,
         default=default_value,
         key=key,
@@ -150,6 +170,10 @@ def show_text_editor(
     if parsed_text_edits is None:
         parsed_text_edits = tuple(text_edits)
 
+    parsed_marks = parse_marks(component_value.get("marks"), page_count)
+    if parsed_marks is None:
+        parsed_marks = tuple(marks)
+
     # Streamlit re-sends the last value on every rerun; act on an id once.
     action = component_value.get("action")
     action_id = component_value.get("action_id")
@@ -163,4 +187,8 @@ def show_text_editor(
     else:
         st.session_state[claimed_key] = action_id
 
-    return TextEditorState(text_edits=parsed_text_edits, action=action)
+    return TextEditorState(
+        text_edits=parsed_text_edits,
+        marks=parsed_marks,
+        action=action,
+    )

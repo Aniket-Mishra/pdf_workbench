@@ -89,10 +89,35 @@ button.primary {
   font-weight: 600;
 }
 
-#font-size {
+#font-size,
+#line-width {
   width: 70px;
   padding: 0 8px;
   font-variant-numeric: tabular-nums;
+}
+
+#line-width-label,
+#fill-label {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+#fill-label {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  min-height: 44px;
+}
+
+#fill {
+  width: 18px;
+  height: 18px;
+  min-height: 0;
+}
+
+#mark-color {
+  width: 44px;
+  padding: 4px;
 }
 
 #status {
@@ -160,8 +185,42 @@ button.primary {
   overflow: hidden;
 }
 
-body.add-text-mode .pdf-page {
+.mark-layer {
+  position: absolute;
+  z-index: 2;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.mark-shape,
+.mark-visible,
+.mark-preview {
+  pointer-events: none;
+}
+
+.mark-hit {
+  pointer-events: visiblePainted;
+  cursor: pointer;
+}
+
+.mark-shape.selected .mark-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+body[data-tool="text"] .pdf-page,
+body[data-tool="box"] .pdf-page,
+body[data-tool="pencil"] .pdf-page {
   cursor: crosshair;
+}
+
+body[data-tool="box"] .pdf-page,
+body[data-tool="pencil"] .pdf-page {
+  touch-action: none;
+  user-select: none;
 }
 
 .text-edit,

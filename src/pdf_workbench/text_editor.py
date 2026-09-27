@@ -1,9 +1,11 @@
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
 import pymupdf
 
 from src.pdf_workbench.basic_ops import validate_pdf
+from src.pdf_workbench.marks import Mark, apply_marks
 
 
 MINIMUM_FONT_SIZE = 8
@@ -19,33 +21,51 @@ class TextEdit:
     vertical_position: float
 
 
-def create_edited_pdf(pdf_path: Path, text_edits: list[TextEdit]) -> bytes:
-    if not text_edits:
-        raise ValueError("Add text before building the PDF.")
+def create_edited_pdf(
+    pdf_path: Path,
+    text_edits: list[TextEdit],
+    marks: Sequence[Mark] = (),
+) -> bytes:
+    if not text_edits and not marks:
+        raise ValueError("Add text or a drawing before creating the PDF.")
 
     with pymupdf.open(pdf_path) as document:
+        clear_rotated_pages(
+            document,
+            {text_edit.page_index for text_edit in text_edits}
+            | {mark.page_index for mark in marks},
+        )
         apply_text_edits(document, text_edits)
+        apply_marks(document, marks)
         output_bytes = document.tobytes()
 
     validate_pdf(output_bytes)
     return output_bytes
 
 
+def clear_rotated_pages(
+    document: pymupdf.Document,
+    page_indexes: set[int],
+) -> None:
+    for page_index in page_indexes:
+        if (
+            isinstance(page_index, bool)
+            or not isinstance(page_index, int)
+            or not 0 <= page_index < document.page_count
+        ):
+            continue
+        page = document[page_index]
+        if page.rotation:
+            page.remove_rotation()
+
+
 def apply_text_edits(
     document: pymupdf.Document,
     text_edits: list[TextEdit],
 ) -> None:
-    prepared_pages: set[int] = set()
     for text_edit in text_edits:
         validate_page_index(document, text_edit.page_index)
-        page = document[text_edit.page_index]
-
-        if text_edit.page_index not in prepared_pages:
-            if page.rotation:
-                page.remove_rotation()
-            prepared_pages.add(text_edit.page_index)
-
-        insert_text_edit(page, text_edit)
+        insert_text_edit(document[text_edit.page_index], text_edit)
 
 
 def insert_text_edit(page: pymupdf.Page, text_edit: TextEdit) -> None:

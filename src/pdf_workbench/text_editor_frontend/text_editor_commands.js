@@ -33,7 +33,20 @@ export function createTextEditorCommands(editor) {
     editor.sendChange();
   }
 
-  function deleteSelectedText() {
+  function deleteSelected() {
+    const selectedMark = editor.getSelectedMark();
+    if (selectedMark) {
+      editor.rememberTextEdits();
+      editor.replaceMarks(
+        editor.getMarks().filter((mark) => mark.id !== selectedMark.id),
+      );
+      editor.setSelectedMarkId(null);
+      editor.renderMarks();
+      editor.showStatus("Drawing deleted.");
+      editor.sendChange();
+      return;
+    }
+
     const selectedTextEditId = editor.getSelectedTextEditId();
     if (!selectedTextEditId) {
       return;
@@ -50,43 +63,50 @@ export function createTextEditorCommands(editor) {
     editor.sendChange();
   }
 
-  function undoTextChange() {
-    const previousTextEdits = editor.takePreviousTextEdits();
-    if (!previousTextEdits) {
+  function undoLastChange() {
+    const previousState = editor.takePreviousTextEdits();
+    if (!previousState) {
       return;
     }
     editor.finishDraft(false);
-    editor.replaceTextEdits(previousTextEdits);
+    editor.replaceTextEdits(previousState.textEdits);
+    editor.replaceMarks(previousState.marks);
     editor.setSelectedTextEditId(null);
+    editor.setSelectedMarkId(null);
     editor.renderTextEdits();
+    editor.renderMarks();
     editor.showStatus("Last change undone.");
     editor.sendChange();
   }
 
-  function clearTextEdits() {
-    if (!editor.getTextEdits().length) {
+  function clearEdits() {
+    if (!editor.getTextEdits().length && !editor.getMarks().length) {
       return;
     }
     const shouldClear = window.confirm(
-      "Remove all added text from this PDF?",
+      "Remove everything added to this PDF?",
     );
     if (!shouldClear) {
       return;
     }
 
     editor.finishDraft(false);
+    editor.cancelDrawing();
     editor.rememberTextEdits();
     editor.replaceTextEdits([]);
+    editor.replaceMarks([]);
     editor.setSelectedTextEditId(null);
+    editor.setSelectedMarkId(null);
     editor.renderTextEdits();
-    editor.showStatus("All added text removed.");
+    editor.renderMarks();
+    editor.showStatus("Everything added was removed.");
     editor.sendChange();
   }
 
   return {
     changeFontSize,
-    clearTextEdits,
-    deleteSelectedText,
-    undoTextChange,
+    clearEdits,
+    deleteSelected,
+    undoLastChange,
   };
 }

@@ -3,6 +3,7 @@ from pathlib import Path
 import streamlit as st
 
 from src.pdf_workbench.document_selector import select_document
+from src.pdf_workbench.marks import Mark
 from src.pdf_workbench.page_images import (
     EDITOR_PAGE_WIDTH,
     RENDER_BATCH_SIZE,
@@ -28,10 +29,12 @@ document_id = document.document_id
 text_edits_by_document = st.session_state.setdefault(
     "text_edits_by_document", {}
 )
+marks_by_document = st.session_state.setdefault("marks_by_document", {})
 edited_pdf_by_document = st.session_state.setdefault(
     "edited_pdf_bytes_by_document", {}
 )
 text_edits = list(text_edits_by_document.get(document_id, []))
+marks: list[Mark] = list(marks_by_document.get(document_id, []))
 
 loaded_pages_key = f"editor_loaded_pages:{document_id}"
 loaded_page_count = min(
@@ -51,6 +54,7 @@ with st.container(key="editor_workspace"):
         pages=rendered_pages,
         page_count=document.page_count,
         text_edits=text_edits,
+        marks=marks,
         download_ready=document_id in edited_pdf_by_document,
         key=(
             f"text_editor:{document_id}:"
@@ -59,9 +63,12 @@ with st.container(key="editor_workspace"):
     )
 
 updated_text_edits = list(editor_state.text_edits)
-if updated_text_edits != text_edits:
+updated_marks = list(editor_state.marks)
+if updated_text_edits != text_edits or updated_marks != marks:
     text_edits = updated_text_edits
+    marks = updated_marks
     text_edits_by_document[document_id] = text_edits
+    marks_by_document[document_id] = marks
     edited_pdf_by_document.pop(document_id, None)
 
 if editor_state.action == "load_more":
@@ -72,14 +79,15 @@ if editor_state.action == "load_more":
     st.rerun()
 
 if editor_state.action == "build":
-    if not text_edits:
-        st.warning("Add text before creating the PDF.")
+    if not text_edits and not marks:
+        st.warning("Add text or a drawing before creating the PDF.")
     else:
         try:
             with st.spinner("Creating PDF..."):
                 edited_pdf_by_document[document_id] = create_edited_pdf(
                     document.path,
                     text_edits,
+                    marks,
                 )
         except ValueError as error:
             st.error(str(error))

@@ -23,7 +23,18 @@ export function renderPdfPages(pageContainer, pages) {
 
     const textLayer = document.createElement("div");
     textLayer.className = "text-layer";
-    pageElement.append(pageImage, textLayer);
+
+    const markLayer = document.createElementNS(
+      "http://www.w3.org/2000/svg",
+      "svg",
+    );
+    markLayer.setAttribute("class", "mark-layer");
+    markLayer.setAttribute("aria-hidden", "true");
+    markLayer.setAttribute(
+      "viewBox",
+      `0 0 ${page.width_points} ${page.height_points}`,
+    );
+    pageElement.append(pageImage, textLayer, markLayer);
 
     const pageNumber = document.createElement("span");
     pageNumber.className = "page-number";

@@ -1,10 +1,11 @@
 let actionSequence = 0;
 
-export function sendEditorState(textEdits, action) {
+export function sendEditorState(textEdits, marks, action) {
   actionSequence += 1;
   sendStreamlitMessage("streamlit:setComponentValue", {
     value: {
       text_edits: textEdits,
+      marks,
       action,
       action_id: `${action}:${Date.now()}:${actionSequence}`,
     },

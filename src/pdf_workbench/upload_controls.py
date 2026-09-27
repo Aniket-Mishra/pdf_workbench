@@ -17,6 +17,7 @@ DOCUMENT_STATE_KEYS = (
     "organizer_loaded_pages",
     "organized_pdf_bytes",
     "text_edits_by_document",
+    "marks_by_document",
     "edited_pdf_bytes_by_document",
 )
 
