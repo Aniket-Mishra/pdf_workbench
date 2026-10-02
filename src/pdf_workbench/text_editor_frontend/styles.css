@@ -203,7 +203,24 @@ button.primary {
 
 .mark-hit {
   pointer-events: visiblePainted;
-  cursor: pointer;
+  cursor: move;
+}
+
+.mark-handle {
+  fill: #ffffff;
+  stroke: var(--primary);
+  stroke-width: 1.5;
+  pointer-events: all;
+}
+
+.mark-handle[data-handle="nw"],
+.mark-handle[data-handle="se"] {
+  cursor: nwse-resize;
+}
+
+.mark-handle[data-handle="ne"],
+.mark-handle[data-handle="sw"] {
+  cursor: nesw-resize;
 }
 
 .mark-shape.selected .mark-visible {

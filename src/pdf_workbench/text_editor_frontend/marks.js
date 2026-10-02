@@ -51,14 +51,6 @@ export function createMarkDrawHandlers(editor) {
       return;
     }
     const tool = editor.getTool();
-
-    const existingMark = event.target.closest(".mark-shape");
-    if (existingMark) {
-      editor.selectMark(existingMark.dataset.markId);
-      editor.showStatus("Drawing selected.");
-      return;
-    }
-
     const pageElement = event.target.closest(".pdf-page");
     if (!pageElement) {
       return;
@@ -228,6 +220,229 @@ export function createMarkDrawHandlers(editor) {
   return {begin, cancel, commit, finish, isDrawing, move};
 }
 
+const handleNames = ["nw", "ne", "sw", "se"];
+
+function handleLength(widthPoints, heightPoints) {
+  return Math.min(widthPoints, heightPoints) * 0.018;
+}
+
+function pointBounds(points) {
+  let minX = 1;
+  let minY = 1;
+  let maxX = 0;
+  let maxY = 0;
+  for (const [x, y] of points) {
+    minX = Math.min(minX, x);
+    minY = Math.min(minY, y);
+    maxX = Math.max(maxX, x);
+    maxY = Math.max(maxY, y);
+  }
+  return {x: minX, y: minY, width: maxX - minX, height: maxY - minY};
+}
+
+function markBounds(mark) {
+  if (mark.kind === "box") {
+    return {
+      x: mark.horizontal_position,
+      y: mark.vertical_position,
+      width: mark.width,
+      height: mark.height,
+    };
+  }
+  return pointBounds(mark.points);
+}
+
+export function moveBox(start, dx, dy) {
+  return {
+    x: clamp(start.x + dx, 0, Math.max(0, 1 - start.width)),
+    y: clamp(start.y + dy, 0, Math.max(0, 1 - start.height)),
+    width: start.width,
+    height: start.height,
+  };
+}
+
+export function resizeBox(start, handleName, pointer) {
+  let left = start.x;
+  let top = start.y;
+  let right = start.x + start.width;
+  let bottom = start.y + start.height;
+  if (handleName.endsWith("w")) {
+    left = clamp(pointer.x, 0, right - minimumBoxSize);
+  } else {
+    right = clamp(pointer.x, left + minimumBoxSize, 1);
+  }
+  if (handleName.startsWith("n")) {
+    top = clamp(pointer.y, 0, bottom - minimumBoxSize);
+  } else {
+    bottom = clamp(pointer.y, top + minimumBoxSize, 1);
+  }
+  return {x: left, y: top, width: right - left, height: bottom - top};
+}
+
+export function shiftPoints(points, dx, dy) {
+  const bounds = pointBounds(points);
+  const shiftX = clamp(dx, -bounds.x, 1 - bounds.x - bounds.width);
+  const shiftY = clamp(dy, -bounds.y, 1 - bounds.y - bounds.height);
+  return points.map(([x, y]) => [x + shiftX, y + shiftY]);
+}
+
+export function scalePoints(points, start, next) {
+  return points.map((point) => {
+    const across = start.width < minimumBoxSize
+      ? point[0]
+      : next.x + ((point[0] - start.x) / start.width) * next.width;
+    const down = start.height < minimumBoxSize
+      ? point[1]
+      : next.y + ((point[1] - start.y) / start.height) * next.height;
+    return [clamp(across, 0, 1), clamp(down, 0, 1)];
+  });
+}
+
+export function createMarkEditHandlers(editor) {
+  let editState = null;
+
+  function begin(event) {
+    if (event.button !== 0) {
+      return false;
+    }
+    const markElement = event.target.closest(".mark-shape");
+    if (!markElement) {
+      return false;
+    }
+    const mark = editor.getMarks().find(
+      (item) => item.id === markElement.dataset.markId,
+    );
+    const pageElement = markElement.closest(".pdf-page");
+    if (!mark || !pageElement) {
+      return false;
+    }
+
+    const handle = event.target.closest(".mark-handle");
+    const previousMarks = copyMarks(editor.getMarks());
+    const savedMark = previousMarks.find((item) => item.id === mark.id);
+    editor.selectMark(mark.id);
+    editor.showStatus("Drawing selected.");
+    event.currentTarget.setPointerCapture(event.pointerId);
+    editState = {
+      pointerId: event.pointerId,
+      markId: mark.id,
+      handleName: handle?.dataset.handle || null,
+      pageElement,
+      startClientX: event.clientX,
+      startClientY: event.clientY,
+      startPointer: readPagePosition(event, pageElement),
+      startBounds: markBounds(mark),
+      startPoints: savedMark.points || null,
+      previousMarks,
+      moved: false,
+    };
+    return true;
+  }
+
+  function move(event) {
+    if (!editState || event.pointerId !== editState.pointerId) {
+      return;
+    }
+    const mark = editor.getMarks().find((item) => item.id === editState.markId);
+    if (!mark) {
+      return;
+    }
+
+    const travel = Math.abs(event.clientX - editState.startClientX)
+      + Math.abs(event.clientY - editState.startClientY);
+    if (travel > 3) {
+      editState.moved = true;
+    }
+    if (!editState.moved) {
+      return;
+    }
+
+    event.preventDefault();
+    const pointer = readPagePosition(event, editState.pageElement);
+    placeMark(mark, editState, pointer);
+    const liveElement = editState.pageElement.querySelector(
+      `[data-mark-id="${CSS.escape(editState.markId)}"]`,
+    );
+    if (liveElement) {
+      syncMarkGeometry(liveElement, mark, editState.pageElement);
+    }
+  }
+
+  function finish(event, cancelEdit = false) {
+    if (!editState || event.pointerId !== editState.pointerId) {
+      return;
+    }
+    const completedEdit = editState;
+    editState = null;
+    if (cancelEdit) {
+      editor.replaceMarks(completedEdit.previousMarks);
+      editor.renderMarks();
+      return;
+    }
+    if (!completedEdit.moved) {
+      return;
+    }
+
+    editor.rememberTextEdits(undefined, completedEdit.previousMarks);
+    editor.renderMarks();
+    const mark = editor.getMarks().find((item) => item.id === completedEdit.markId);
+    editor.showStatus(editStatus(mark, completedEdit.handleName));
+    editor.sendChange();
+  }
+
+  function cancel() {
+    if (!editState) {
+      return;
+    }
+    finish({pointerId: editState.pointerId}, true);
+  }
+
+  function isEditing() {
+    return editState !== null;
+  }
+
+  return {begin, cancel, finish, isEditing, move};
+}
+
+function placeMark(mark, editState, pointer) {
+  const dx = pointer.x - editState.startPointer.x;
+  const dy = pointer.y - editState.startPointer.y;
+  if (mark.kind === "box" && !editState.handleName) {
+    const moved = moveBox(editState.startBounds, dx, dy);
+    mark.horizontal_position = moved.x;
+    mark.vertical_position = moved.y;
+    return;
+  }
+  if (mark.kind === "box") {
+    const resized = resizeBox(
+      editState.startBounds,
+      editState.handleName,
+      pointer,
+    );
+    mark.horizontal_position = resized.x;
+    mark.vertical_position = resized.y;
+    mark.width = resized.width;
+    mark.height = resized.height;
+    return;
+  }
+  if (!editState.handleName) {
+    mark.points = shiftPoints(editState.startPoints, dx, dy);
+    return;
+  }
+  mark.points = scalePoints(
+    editState.startPoints,
+    editState.startBounds,
+    resizeBox(editState.startBounds, editState.handleName, pointer),
+  );
+}
+
+function editStatus(mark, handleName) {
+  if (mark.kind === "box") {
+    return handleName ? "Box resized." : "Box moved.";
+  }
+  return handleName ? "Stroke resized." : "Stroke moved.";
+}
+
 export function createMarkStyleHandlers(editor) {
   function changeLineWidth() {
     const requestedLineWidth = Number.parseInt(editor.lineWidthInput.value, 10);
@@ -296,7 +511,85 @@ function createMarkElement(mark, pageElement, selectedMarkId, fillOpacity) {
     markElement.classList.add("selected");
   }
   markElement.append(hitShape, visibleShape);
+  if (mark.id === selectedMarkId) {
+    appendHandles(markElement, markBounds(mark), pageElement);
+  }
   return markElement;
+}
+
+function appendHandles(markElement, bounds, pageElement) {
+  const widthPoints = Number(pageElement.dataset.widthPoints);
+  const heightPoints = Number(pageElement.dataset.heightPoints);
+  const handleSize = handleLength(widthPoints, heightPoints);
+  for (const handleName of handleNames) {
+    const handle = document.createElementNS(svgNamespace, "rect");
+    handle.setAttribute("class", "mark-handle");
+    handle.dataset.handle = handleName;
+    placeHandle(
+      handle,
+      bounds,
+      handleName,
+      handleSize,
+      widthPoints,
+      heightPoints,
+    );
+    markElement.append(handle);
+  }
+}
+
+function placeHandle(
+  handle,
+  bounds,
+  handleName,
+  handleSize,
+  widthPoints,
+  heightPoints,
+) {
+  const corner = {
+    x: handleName.endsWith("w") ? bounds.x : bounds.x + bounds.width,
+    y: handleName.startsWith("n") ? bounds.y : bounds.y + bounds.height,
+  };
+  handle.setAttribute("x", String(corner.x * widthPoints - handleSize / 2));
+  handle.setAttribute("y", String(corner.y * heightPoints - handleSize / 2));
+  handle.setAttribute("width", String(handleSize));
+  handle.setAttribute("height", String(handleSize));
+}
+
+function applyShapeGeometry(shape, mark, widthPoints, heightPoints) {
+  if (mark.kind === "box") {
+    shape.setAttribute("x", String(mark.horizontal_position * widthPoints));
+    shape.setAttribute("y", String(mark.vertical_position * heightPoints));
+    shape.setAttribute("width", String(mark.width * widthPoints));
+    shape.setAttribute("height", String(mark.height * heightPoints));
+    return;
+  }
+  shape.setAttribute(
+    "points",
+    mark.points
+      .map((point) => `${point[0] * widthPoints},${point[1] * heightPoints}`)
+      .join(" "),
+  );
+}
+
+function syncMarkGeometry(markElement, mark, pageElement) {
+  const widthPoints = Number(pageElement.dataset.widthPoints);
+  const heightPoints = Number(pageElement.dataset.heightPoints);
+  markElement.querySelectorAll(".mark-visible, .mark-hit").forEach((shape) => {
+    applyShapeGeometry(shape, mark, widthPoints, heightPoints);
+  });
+
+  const bounds = markBounds(mark);
+  const handleSize = handleLength(widthPoints, heightPoints);
+  markElement.querySelectorAll(".mark-handle").forEach((handle) => {
+    placeHandle(
+      handle,
+      bounds,
+      handle.dataset.handle,
+      handleSize,
+      widthPoints,
+      heightPoints,
+    );
+  });
 }
 
 function createVisibleShape(mark, pageElement, fillOpacity) {
@@ -306,20 +599,8 @@ function createVisibleShape(mark, pageElement, fillOpacity) {
     svgNamespace,
     mark.kind === "box" ? "rect" : "polyline",
   );
-  if (mark.kind === "box") {
-    shape.setAttribute("x", String(mark.horizontal_position * widthPoints));
-    shape.setAttribute("y", String(mark.vertical_position * heightPoints));
-    shape.setAttribute("width", String(mark.width * widthPoints));
-    shape.setAttribute("height", String(mark.height * heightPoints));
-  } else {
-    shape.setAttribute(
-      "points",
-      mark.points
-        .map((point) => (
-          `${point[0] * widthPoints},${point[1] * heightPoints}`
-        ))
-        .join(" "),
-    );
+  applyShapeGeometry(shape, mark, widthPoints, heightPoints);
+  if (mark.kind !== "box") {
     shape.setAttribute("stroke-linecap", "round");
     shape.setAttribute("stroke-linejoin", "round");
   }

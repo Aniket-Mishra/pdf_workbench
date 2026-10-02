@@ -15,6 +15,7 @@ import {createTextEditorCommands} from "./text_editor_commands.js";
 import {
   copyMarks,
   createMarkDrawHandlers,
+  createMarkEditHandlers,
   createMarkStyleHandlers,
   renderMarks,
 } from "./marks.js";
@@ -74,11 +75,11 @@ function showStatus(message) {
   status.textContent = message;
 }
 
-function rememberTextEdits(previousTextEdits = textEdits) {
+function rememberTextEdits(previousTextEdits = textEdits, previousMarks = marks) {
   // Drawings share this stack so undo cannot restore text and leave a new stroke.
   textEditHistory.push({
     textEdits: copyTextEdits(previousTextEdits),
-    marks: copyMarks(marks),
+    marks: copyMarks(previousMarks),
   });
   if (textEditHistory.length > 30) {
     textEditHistory.shift();
@@ -240,6 +241,10 @@ const textDraftController = createTextDraftController({
 });
 
 function handlePageClick(event) {
+  // Pointer capture retargets the click after a drag to the page list.
+  if (event.target.id === "pages") {
+    return;
+  }
   if (event.target.closest(".draft-text, .mark-shape") || isDrawTool()) {
     return;
   }
@@ -317,6 +322,18 @@ const markDrawHandlers = createMarkDrawHandlers({
   getTool: () => tool,
   rememberTextEdits,
   renderMarks: renderCurrentMarks,
+  selectMark,
+  sendChange: () => sendEditorState("change"),
+  showStatus,
+});
+
+const markEditHandlers = createMarkEditHandlers({
+  getMarks: () => marks,
+  rememberTextEdits,
+  renderMarks: renderCurrentMarks,
+  replaceMarks: (replacementMarks) => {
+    marks = replacementMarks;
+  },
   selectMark,
   sendChange: () => sendEditorState("change"),
   showStatus,
@@ -462,13 +479,7 @@ window.addEventListener("message", (event) => {
 });
 
 function onPointerDown(event) {
-  const markElement = event.target.closest(".mark-shape");
-  if (markElement && !isDrawTool()) {
-    if (event.button !== 0) {
-      return;
-    }
-    selectMark(markElement.dataset.markId);
-    showStatus("Drawing selected.");
+  if (markEditHandlers.begin(event)) {
     return;
   }
   if (isDrawTool()) {
@@ -479,16 +490,19 @@ function onPointerDown(event) {
 }
 
 function onPointerMove(event) {
+  markEditHandlers.move(event);
   markDrawHandlers.move(event);
   textDragHandlers.move(event);
 }
 
 function onPointerUp(event) {
+  markEditHandlers.finish(event);
   markDrawHandlers.finish(event);
   textDragHandlers.finish(event);
 }
 
 function onPointerCancel(event) {
+  markEditHandlers.finish(event, true);
   markDrawHandlers.finish(event, true);
   textDragHandlers.finish(event, true);
 }
@@ -539,6 +553,11 @@ function undoLastEdit() {
     showStatus("Drawing cancelled.");
     return;
   }
+  if (markEditHandlers.isEditing()) {
+    markEditHandlers.cancel();
+    showStatus("Edit cancelled.");
+    return;
+  }
   textEditorCommands.undoLastChange();
 }
 
@@ -546,6 +565,11 @@ function deleteSelectedEdit() {
   if (markDrawHandlers.isDrawing()) {
     markDrawHandlers.cancel();
     showStatus("Drawing cancelled.");
+    return;
+  }
+  if (markEditHandlers.isEditing()) {
+    markEditHandlers.cancel();
+    showStatus("Edit cancelled.");
     return;
   }
   textEditorCommands.deleteSelected();
@@ -567,6 +591,7 @@ document.addEventListener("keydown", (event) => {
     return;
   }
   if (event.key === "Escape") {
+    markEditHandlers.cancel();
     markDrawHandlers.cancel();
     setTool(null);
   } else if (
