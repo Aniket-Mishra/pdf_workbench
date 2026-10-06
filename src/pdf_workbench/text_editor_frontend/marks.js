@@ -220,8 +220,6 @@ export function createMarkDrawHandlers(editor) {
   return {begin, cancel, commit, finish, isDrawing, move};
 }
 
-const handleNames = ["nw", "ne", "sw", "se"];
-
 function handleLength(widthPoints, heightPoints) {
   return Math.min(widthPoints, heightPoints) * 0.018;
 }
@@ -287,13 +285,31 @@ export function shiftPoints(points, dx, dy) {
 }
 
 export function scalePoints(points, start, next) {
+  function scaledCoordinate(value, startOrigin, startSpan, nextOrigin, nextSpan) {
+    if (startSpan !== 0) {
+      return nextOrigin + ((value - startOrigin) / startSpan) * nextSpan;
+    }
+    if (nextOrigin === startOrigin) {
+      return nextOrigin + nextSpan;
+    }
+    return nextOrigin;
+  }
+
   return points.map((point) => {
-    const across = start.width < minimumBoxSize
-      ? point[0]
-      : next.x + ((point[0] - start.x) / start.width) * next.width;
-    const down = start.height < minimumBoxSize
-      ? point[1]
-      : next.y + ((point[1] - start.y) / start.height) * next.height;
+    const across = scaledCoordinate(
+      point[0],
+      start.x,
+      start.width,
+      next.x,
+      next.width,
+    );
+    const down = scaledCoordinate(
+      point[1],
+      start.y,
+      start.height,
+      next.y,
+      next.height,
+    );
     return [clamp(across, 0, 1), clamp(down, 0, 1)];
   });
 }
@@ -507,11 +523,9 @@ function createMarkElement(mark, pageElement, selectedMarkId, fillOpacity) {
   const markElement = document.createElementNS(svgNamespace, "g");
   markElement.setAttribute("class", "mark-shape");
   markElement.dataset.markId = mark.id;
-  if (mark.id === selectedMarkId) {
-    markElement.classList.add("selected");
-  }
   markElement.append(hitShape, visibleShape);
   if (mark.id === selectedMarkId) {
+    markElement.classList.add("selected");
     appendHandles(markElement, markBounds(mark), pageElement);
   }
   return markElement;
@@ -521,7 +535,7 @@ function appendHandles(markElement, bounds, pageElement) {
   const widthPoints = Number(pageElement.dataset.widthPoints);
   const heightPoints = Number(pageElement.dataset.heightPoints);
   const handleSize = handleLength(widthPoints, heightPoints);
-  for (const handleName of handleNames) {
+  for (const handleName of ["nw", "ne", "sw", "se"]) {
     const handle = document.createElementNS(svgNamespace, "rect");
     handle.setAttribute("class", "mark-handle");
     handle.dataset.handle = handleName;

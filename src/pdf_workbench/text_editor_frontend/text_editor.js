@@ -444,6 +444,9 @@ window.addEventListener("message", (event) => {
   applyStreamlitTheme(event.data.theme);
 
   if (documentChanged) {
+    // Drop the gesture before swapping marks. cancel() restores the
+    // pre-drag snapshot, and that must not replace the new document.
+    markEditHandlers.cancel();
     textEdits = copyTextEdits(incomingTextEdits);
     marks = copyMarks(incomingMarks);
     textEditHistory = [];
@@ -455,6 +458,7 @@ window.addEventListener("message", (event) => {
 
   if (pagesChanged) {
     const previousScrollPosition = viewport.scrollTop;
+    markEditHandlers.cancel();
     markDrawHandlers.cancel();
     pages = incomingPages;
     renderPdfPages(pageContainer, pages);

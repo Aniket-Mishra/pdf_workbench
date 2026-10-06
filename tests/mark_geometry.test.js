@@ -43,3 +43,19 @@ test("scale stretches a stroke inside the new box", () => {
   );
   assert.deepEqual(scaled, [[0.1, 0.1], [0.5, 0.5]]);
 });
+
+test("scale follows a flat stroke onto the edge that moved", () => {
+  const points = [[0.2, 0.4], [0.6, 0.4]];
+  const start = {x: 0.2, y: 0.4, width: 0.4, height: 0};
+
+  const south = resizeBox(start, "se", {x: 0.8, y: 0.7});
+  const pulledDown = scalePoints(points, start, south);
+  const newBottom = south.y + south.height;
+  assert.ok(Math.abs(pulledDown[0][1] - newBottom) < 1e-9);
+  assert.ok(Math.abs(pulledDown[1][1] - newBottom) < 1e-9);
+
+  const north = resizeBox(start, "ne", {x: 0.8, y: 0.1});
+  const pulledUp = scalePoints(points, start, north);
+  assert.ok(Math.abs(pulledUp[0][1] - north.y) < 1e-9);
+  assert.ok(Math.abs(pulledUp[1][1] - north.y) < 1e-9);
+});
